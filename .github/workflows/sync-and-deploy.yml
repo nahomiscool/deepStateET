@@ -1,4 +1,8 @@
-name: Sync & deploy
+name: Sync map
+
+# Downloads the Google My Maps layers into data/layers/ and commits them.
+# GitHub Pages ("Deploy from a branch") then publishes the updated site.
+# Uses only shell commands, so it works even when third-party actions are disabled.
 
 on:
   push:
@@ -9,10 +13,9 @@ on:
 permissions:
   contents: write
   pages: write
-  id-token: write
 
 concurrency:
-  group: sync-and-deploy
+  group: sync-map
   cancel-in-progress: false
 
 jobs:
@@ -20,59 +23,34 @@ jobs:
     # Only the branch GitHub Pages publishes (the default branch) keeps synced data.
     if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.commit.outputs.changed }}
-      pages: ${{ steps.pages.outputs.build_type }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BRANCH: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Check out
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git fetch -q --depth 1 origin "$BRANCH"
+          git checkout -q -B "$BRANCH" FETCH_HEAD
       - name: Download map from Google My Maps
-        # A failed download still publishes the site with the last synced data.
-        continue-on-error: true
         run: node scripts/sync-map.mjs
       - name: Commit changes
         id: commit
         run: |
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-          if [ -n "$(git status --porcelain data)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data
-            git commit -m "Sync map data $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [ -z "$(git status --porcelain data)" ]; then
+            echo "No changes."
+            exit 0
           fi
-      - name: Check how GitHub Pages is set up
-        id: pages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || echo none)
-          echo "GitHub Pages build type: $type"
-          echo "build_type=$type" >> "$GITHUB_OUTPUT"
-      - name: Rebuild Pages (deploy from branch)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -q -m "Sync map data $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push -q origin "HEAD:$BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Rebuild GitHub Pages
         # Pushes made by this workflow don't always start a Pages build, so request one.
-        if: steps.pages.outputs.build_type == 'legacy' && steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api -X POST "repos/${{ github.repository }}/pages/builds"
-      - uses: actions/configure-pages@v5
-        if: steps.pages.outputs.build_type == 'workflow' && (github.event_name != 'schedule' || steps.commit.outputs.changed == 'true')
-      - uses: actions/upload-pages-artifact@v3
-        if: steps.pages.outputs.build_type == 'workflow' && (github.event_name != 'schedule' || steps.commit.outputs.changed == 'true')
-        with:
-          path: .
-
-  deploy:
-    # Only when Pages is set to "GitHub Actions" as its source.
-    needs: sync
-    if: needs.sync.outputs.pages == 'workflow' && (github.event_name != 'schedule' || needs.sync.outputs.changed == 'true')
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+        if: steps.commit.outputs.changed == 'true'
+        continue-on-error: true
+        run: gh api -X POST "repos/${REPO}/pages/builds" --silent && echo "Pages build requested."

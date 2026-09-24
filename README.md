@@ -10,11 +10,11 @@ It is a static site with no build step. The libraries (Leaflet, togeojson, JSZip
 ## How the data gets in
 
 You keep editing the map in **Google My Maps** as usual. The GitHub Action
-`.github/workflows/sync-and-deploy.yml` runs every 30 minutes and does the rest:
+`.github/workflows/sync-and-deploy.yml` ("Sync map") runs every 30 minutes and does the rest:
 
 1. It downloads each layer listed under `layers` in `data/config.json` into `data/layers/<id>.kml`.
 2. If anything changed, it saves a daily snapshot in `data/history/<date>/` and commits it.
-3. It publishes the site to GitHub Pages.
+3. GitHub Pages publishes the updated site.
 
 Each layer becomes a toggle in the sidebar. The site keeps the colours, line widths and
 fill opacity you set in My Maps. Popups show each place's description and its data columns.
@@ -39,8 +39,10 @@ The "Ethiopia Control Zones (by administrative zone)" layer is already added (`d
 
 1. **Share the map publicly.** In My Maps, click *Share* and turn on *Anyone with this link can view*.
    If you skip this, Google won't serve the KML file and the sync step fails.
-2. **Enable Pages.** In the repo, go to *Settings → Pages → Build and deployment* and set the source to **GitHub Actions**.
-3. **Merge to `main`** and run the **Sync & deploy** workflow once from the *Actions* tab (*Run workflow*).
+2. **Enable Pages.** In the repo, go to *Settings → Pages → Build and deployment*, choose **Deploy from a branch**,
+   and pick the repository's default branch with the `/ (root)` folder.
+3. **Check Actions.** In *Settings → Actions → General*, make sure Actions are allowed, and under *Workflow permissions*
+   choose **Read and write permissions**. The **Sync map** workflow runs every 30 minutes, on every push, or from the *Actions* tab (*Run workflow*).
 
 ## Configuration: `data/config.json`
 

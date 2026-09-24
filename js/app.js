@@ -470,7 +470,7 @@
     }
     const mid = state.config.googleMyMapsId;
     showNotice(
-      '<b>No map data yet.</b> Layers appear once the <b>Sync &amp; deploy</b> GitHub Action has downloaded them' +
+      '<b>No map data yet.</b> Layers appear once the <b>Sync map</b> GitHub Action has downloaded them' +
       (mid ? ' from <a target="_blank" rel="noopener" href="https://www.google.com/maps/d/viewer?mid=' + encodeURIComponent(mid) + '">the source map</a>' : '') +
       ' into <code>data/layers/</code>. You can also drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
     return false;
