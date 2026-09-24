@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>DeepState ET</title>
+  <link>https://nahomiscool.github.io/deepStateET/</link>
+  <atom:link href="https://nahomiscool.github.io/deepStateET/feed.xml" rel="self" type="application/rss+xml"/>
+  <description>Updates and changes of control on the DeepState ET map of Ethiopia.</description>
+  <language>en</language>
+
+</channel>
+</rss>

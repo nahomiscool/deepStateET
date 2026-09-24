@@ -1,21 +1,36 @@
-/* DeepState ET: renders a Google My Maps export (data/map.kml) as a situation map. */
+/* DeepState ET: renders Google My Maps layers (synced into data/layers/) as a situation map,
+   with a timeline of daily snapshots, a change map, control statistics and reference layers. */
 (function () {
   'use strict';
 
   const DEFAULT_CONFIG = {
     title: 'DeepState ET',
     googleMyMapsId: '',
+    repo: 'nahomiscool/deepStateET',
     center: [9.1, 40.5],
     zoom: 6,
+    basemap: 'google-roadmap',
+    layers: [],
     legend: []
   };
 
   const state = {
     config: DEFAULT_CONFIG,
-    groups: [],        // { name, layer, features: [{ feature, layer }], visible }
-    searchIndex: [],   // { name, group, layer }
-    regionsLayer: null,
-    regionLabels: null
+    lang: 'en',
+    meta: {},
+    timeline: [],         // [{ date, snapshot }], oldest first; snapshot null = latest files
+    index: 0,             // position in timeline being viewed
+    compare: 'prev',      // 'prev' or a number of days
+    datasets: new Map(),  // cache: timeline key -> dataset
+    current: null,        // dataset on the map
+    baseline: null,       // dataset compared against
+    groups: [],           // rendered groups: { name, layer, count, styles }
+    records: [],          // rendered features: { key, group, feature, layer, kind, state, color, area, date }
+    searchIndex: [],
+    changes: [],
+    eventDays: 0,
+    embed: false,
+    preview: false
   };
 
   // ---------- helpers ----------
@@ -36,18 +51,60 @@
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = v;
       else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-      else if (v !== undefined && v !== null) node.setAttribute(k, v);
+      else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v);
     }
-    for (const c of [].concat(children || [])) if (c) node.append(c);
+    for (const c of [].concat(children || [])) if (c !== null && c !== undefined && c !== false) node.append(c);
     return node;
   }
 
+  function t(key, vars) {
+    const table = I18N.strings[state.lang] || I18N.strings.en;
+    let s = table[key] !== undefined ? table[key] : (I18N.strings.en[key] !== undefined ? I18N.strings.en[key] : key);
+    for (const [k, v] of Object.entries(vars || {})) s = s.split('{' + k + '}').join(v);
+    return s;
+  }
+
+  function locale() {
+    return { en: 'en-GB', am: 'am-ET', om: 'om-ET' }[state.lang] || undefined;
+  }
+
   function formatDate(value, withTime) {
-    const d = new Date(value);
+    const d = value instanceof Date ? value : new Date(value);
     if (isNaN(d)) return String(value);
     const opts = { year: 'numeric', month: 'short', day: 'numeric' };
     if (withTime) Object.assign(opts, { hour: '2-digit', minute: '2-digit' });
-    return d.toLocaleString(undefined, opts);
+    try { return d.toLocaleString(locale(), opts); } catch (e) { return d.toLocaleString(undefined, opts); }
+  }
+
+  const dayDate = (iso) => new Date(iso + 'T12:00:00');
+  const escapeText = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+
+  function storage(key, value) {
+    try {
+      if (value === undefined) return localStorage.getItem(key);
+      localStorage.setItem(key, value);
+    } catch (e) { /* storage unavailable */ }
+    return null;
+  }
+
+  function toast(message) {
+    const node = document.getElementById('toast');
+    node.textContent = message;
+    node.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { node.hidden = true; }, 2200);
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall through */ }
+    const area = el('textarea', { style: 'position:fixed;opacity:0' });
+    area.value = text;
+    document.body.append(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { /* unsupported */ }
+    area.remove();
+    return ok;
   }
 
   // Descriptions from My Maps can contain HTML. Keep a small safe subset.
@@ -83,6 +140,32 @@
     return root.innerHTML;
   }
 
+  // ---------- i18n ----------
+
+  function applyTranslations() {
+    document.documentElement.lang = state.lang;
+    document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((n) => { n.placeholder = t(n.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-aria]').forEach((n) => { n.setAttribute('aria-label', t(n.dataset.i18nAria)); });
+  }
+
+  function setupLanguage() {
+    const select = document.getElementById('lang-select');
+    for (const [code, name] of Object.entries(I18N.languages)) select.append(el('option', { value: code, text: name }));
+    const fromUrl = new URLSearchParams(location.search).get('lang');
+    const browser = (navigator.language || 'en').slice(0, 2);
+    const chosen = [fromUrl, storage('lang'), browser, 'en'].find((c) => c && I18N.strings[c]);
+    state.lang = chosen;
+    select.value = chosen;
+    select.addEventListener('change', () => {
+      state.lang = select.value;
+      storage('lang', state.lang);
+      applyTranslations();
+      renderAll();
+    });
+    applyTranslations();
+  }
+
   // ---------- styling ----------
 
   function num(v, fallback) {
@@ -105,20 +188,23 @@
   }
 
   function geometryKind(feature) {
-    const t = feature.geometry && feature.geometry.type;
-    if (!t) return null;
-    if (/Point/.test(t)) return 'point';
-    if (/LineString/.test(t)) return 'line';
-    if (/Polygon/.test(t)) return 'polygon';
-    return 'polygon'; // GeometryCollection etc.
+    const type = feature.geometry && feature.geometry.type;
+    if (!type) return null;
+    if (/Point/.test(type)) return 'point';
+    if (/LineString/.test(type)) return 'line';
+    return 'polygon';
+  }
+
+  function featureColor(feature) {
+    const p = feature.properties || {};
+    const kind = geometryKind(feature);
+    if (kind === 'point') return pointColor(p);
+    if (kind === 'line') return p.stroke || '#e5484d';
+    return p.fill || p.stroke || '#e5484d';
   }
 
   function styleKey(feature) {
-    const p = feature.properties || {};
-    const kind = geometryKind(feature);
-    if (kind === 'point') return 'point|' + pointColor(p);
-    if (kind === 'line') return 'line|' + (p.stroke || '');
-    return 'polygon|' + (p.fill || p.stroke || '');
+    return geometryKind(feature) + '|' + featureColor(feature);
   }
 
   function swatch(kind, color) {
@@ -128,25 +214,76 @@
     return s;
   }
 
+  // Properties that come from KML styling or structure rather than My Maps data columns.
+  const INTERNAL_PROPS = /^(name|description|styleUrl|styleHash|styleMap|stroke|stroke-opacity|stroke-width|fill|fill-opacity|icon|icon-color|icon-opacity|icon-scale|icon-heading|icon-offset|icon-offset-units|label-scale|label-color|label-opacity|visibility|timespan|timestamp|gx_media_links|marker-color)$/i;
+  const DATE_PROPS = /^(date|time|when|day|event date|date of event|ቀን|guyyaa)$/i;
+
+  function dataFields(p) {
+    return Object.entries(p)
+      .filter(([k, v]) => !INTERNAL_PROPS.test(k) && v !== '' && v !== null && typeof v !== 'object')
+      .map(([k, v]) => [k, String(v)]);
+  }
+
+  function featureDate(p) {
+    if (p.timestamp) return Geo.parseDate(p.timestamp);
+    if (p.timespan && p.timespan.begin) return Geo.parseDate(p.timespan.begin);
+    for (const [k, v] of Object.entries(p)) if (DATE_PROPS.test(k)) return Geo.parseDate(v);
+    return null;
+  }
+
+  // My Maps "style by data column" gives each value its own colour, but the KML only
+  // keeps the colours. Find the column whose values line up one-to-one with the
+  // colours and use those values as labels.
+  function styleLabels(features) {
+    const styles = new Set(features.map(styleKey));
+    const labels = new Map();
+    if (styles.size < 2) return labels;
+    const columns = new Map(); // column -> Map(styleKey -> Set(values))
+    features.forEach((f) => {
+      const key = styleKey(f);
+      dataFields(f.properties || {}).forEach(([col, val]) => {
+        if (!columns.has(col)) columns.set(col, new Map());
+        const byStyle = columns.get(col);
+        if (!byStyle.has(key)) byStyle.set(key, new Set());
+        byStyle.get(key).add(val);
+      });
+    });
+    for (const [, byStyle] of columns) {
+      if (byStyle.size !== styles.size) continue;
+      const values = [...byStyle.values()];
+      if (!values.every((v) => v.size === 1)) continue;
+      const flat = values.map((v) => [...v][0]);
+      if (new Set(flat).size !== flat.length) continue;
+      for (const [key, vals] of byStyle) labels.set(key, [...vals][0]);
+      break;
+    }
+    return labels;
+  }
+
   // ---------- map setup ----------
 
   const map = L.map('map', {
     zoomControl: true,
     worldCopyJump: true,
     minZoom: 4,
-    maxBounds: [[-5, 20], [25, 60]],
-    preferCanvas: false
+    maxBounds: [[-5, 20], [25, 60]]
   });
+  map.createPane('refPane').style.zIndex = 350;        // boundaries and roads, under the data
+  map.createPane('highlightPane').style.zIndex = 450;  // change outlines, over the data
+  map.createPane('townPane').style.zIndex = 550;       // towns, under event markers
+  map.getPane('refPane').style.pointerEvents = 'none';
+  map.getPane('highlightPane').style.pointerEvents = 'none';
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+  L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
 
-  const GOOGLE_ATTR = 'Map data &copy; Google';
   const googleTiles = (lyrs) => L.tileLayer('https://mt{s}.google.com/vt/lyrs=' + lyrs + '&hl=en&x={x}&y={y}&z={z}', {
-    subdomains: '0123', maxZoom: 20, attribution: GOOGLE_ATTR
+    subdomains: '0123', maxZoom: 20, attribution: 'Map data &copy; Google'
   });
   const BASEMAPS = {
-    'google-roadmap': { label: 'Google Maps', layer: googleTiles('m') },
+    'google-roadmap': { label: 'Google Maps', layer: googleTiles('m'), light: true },
     'google-hybrid': { label: 'Google Satellite (labels)', layer: googleTiles('y') },
     'google-satellite': { label: 'Google Satellite', layer: googleTiles('s') },
-    'google-terrain': { label: 'Google Terrain', layer: googleTiles('p') },
+    'google-terrain': { label: 'Google Terrain', layer: googleTiles('p'), light: true },
     'dark': {
       label: 'Dark',
       layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -162,12 +299,14 @@
     if (currentBasemap) map.removeLayer(currentBasemap);
     currentBasemap = BASEMAPS[key].layer.addTo(map);
     currentBasemap.bringToBack();
-    document.body.classList.toggle('light-basemap', key === 'google-roadmap' || key === 'google-terrain');
+    document.body.classList.toggle('light-basemap', !!BASEMAPS[key].light);
     document.getElementById('basemap-select').value = key;
-    try { localStorage.setItem('basemap', key); } catch (e) { /* storage unavailable */ }
+    storage('basemap', key);
+    restyleReference();
   }
-  map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
-  L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+  const basemapSelect = document.getElementById('basemap-select');
+  for (const [key, b] of Object.entries(BASEMAPS)) basemapSelect.append(el('option', { value: key, text: b.label }));
+  basemapSelect.addEventListener('change', () => setBasemap(basemapSelect.value));
 
   const CoordControl = L.Control.extend({
     options: { position: 'bottomleft' },
@@ -184,57 +323,140 @@
   const coords = new CoordControl().addTo(map);
   map.on('mousemove', (e) => coords.update(e.latlng));
   map.on('mouseout', () => coords.update(null));
+  map.on('zoomend', () => {
+    const z = map.getZoom();
+    const container = map.getContainer();
+    container.classList.toggle('z-low', z < 7);
+    container.classList.toggle('z-high', z >= 9);
+    updateReferenceVisibility();
+  });
 
-  const basemapSelect = document.getElementById('basemap-select');
-  for (const [key, b] of Object.entries(BASEMAPS)) basemapSelect.append(el('option', { value: key, text: b.label }));
-  basemapSelect.addEventListener('change', () => setBasemap(basemapSelect.value));
-
-  // URL hash keeps the current view shareable: #zoom/lat/lng
+  // URL hash keeps the view shareable: #zoom/lat/lng[/YYYY-MM-DD]
   function readHash() {
-    const m = location.hash.match(/^#(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);
-    return m ? { zoom: +m[1], center: [+m[2], +m[3]] } : null;
+    const m = location.hash.match(/^#(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)(?:\/(\d{4}-\d{2}-\d{2}))?/);
+    return m ? { zoom: +m[1], center: [+m[2], +m[3]], date: m[4] || null } : null;
   }
   function writeHash() {
     const c = map.getCenter();
-    history.replaceState(null, '', '#' + map.getZoom() + '/' + c.lat.toFixed(4) + '/' + c.lng.toFixed(4));
+    const entry = state.timeline[state.index];
+    const date = entry && entry.snapshot && state.index < state.timeline.length - 1 ? '/' + entry.date : '';
+    history.replaceState(null, '', location.pathname + location.search + '#' + map.getZoom() + '/' + c.lat.toFixed(4) + '/' + c.lng.toFixed(4) + date);
   }
   map.on('moveend', writeHash);
 
-  // ---------- regions ----------
+  // ---------- reference layers ----------
 
-  async function loadRegions() {
-    const data = await fetchJSON('data/regions.geojson', null);
-    if (!data) return;
-    state.regionsLayer = L.geoJSON(data, {
-      interactive: false,
-      style: { color: '#5b6472', weight: 1.2, opacity: 0.7, dashArray: '4 4', fill: false }
-    });
-    // City-regions are tiny, so only label them once zoomed in.
-    const small = new Set(['ET-AA', 'ET-DD', 'ET-HA']);
-    state.regionLabels = L.layerGroup(data.features.filter((f) => !small.has(f.properties.iso)).map((f) => {
-      const center = L.geoJSON(f).getBounds().getCenter();
-      return L.tooltip({ permanent: true, direction: 'center', className: 'region-label', interactive: false })
-        .setLatLng(center).setContent(f.properties.name);
-    }));
-    state.regionsLayer.addTo(map);
-    updateRegionLabels();
-    map.on('zoomend', updateRegionLabels);
-    document.getElementById('toggle-regions').addEventListener('change', (e) => {
-      if (e.target.checked) state.regionsLayer.addTo(map); else map.removeLayer(state.regionsLayer);
-      updateRegionLabels();
-    });
+  const reference = {};
+  const REFERENCE_SOURCES = {
+    regions: 'data/regions.geojson',
+    zones: 'data/zones.geojson',
+    woredas: 'data/woredas.geojson',
+    roads: 'data/roads.geojson',
+    towns: 'data/towns.geojson'
+  };
+
+  function refColors() {
+    const light = document.body.classList.contains('light-basemap');
+    return {
+      region: light ? '#4a5261' : '#9aa3b2',
+      admin: light ? '#6b7383' : '#7d8696',
+      road: light ? '#b0662a' : '#d9a066'
+    };
   }
 
-  function updateRegionLabels() {
-    if (!state.regionLabels) return;
-    const show = document.getElementById('toggle-regions').checked && map.getZoom() >= 5 && map.getZoom() <= 8;
-    if (show) state.regionLabels.addTo(map); else map.removeLayer(state.regionLabels);
+  function buildReference(name, data) {
+    const c = refColors();
+    if (name === 'regions') {
+      const lines = L.geoJSON(data, {
+        pane: 'refPane', interactive: false,
+        style: { color: c.region, weight: 1.4, opacity: 0.8, dashArray: '5 4', fill: false }
+      });
+      // City-regions are tiny, so leave their labels to the towns layer.
+      const small = new Set(['ET-AA', 'ET-DD', 'ET-HA']);
+      const labels = data.features.filter((f) => !small.has(f.properties.iso)).map((f) =>
+        L.tooltip({ permanent: true, direction: 'center', className: 'region-label', interactive: false })
+          .setLatLng(L.geoJSON(f).getBounds().getCenter()).setContent(f.properties.name));
+      return { layer: L.layerGroup([lines, ...labels]), restyle: () => lines.setStyle({ color: refColors().region }) };
+    }
+    if (name === 'zones' || name === 'woredas') {
+      const weight = name === 'zones' ? 0.9 : 0.5;
+      const layer = L.geoJSON(data, {
+        pane: 'refPane', interactive: false,
+        style: { color: c.admin, weight, opacity: 0.7, fill: false }
+      });
+      return { layer, restyle: () => layer.setStyle({ color: refColors().admin }) };
+    }
+    if (name === 'roads') {
+      const layer = L.geoJSON(data, {
+        pane: 'refPane', interactive: false,
+        style: { color: c.road, weight: 1.3, opacity: 0.75 }
+      });
+      return { layer, restyle: () => layer.setStyle({ color: refColors().road }) };
+    }
+    if (name === 'towns') {
+      const layer = L.geoJSON(data, {
+        pointToLayer: (f, latlng) => {
+          const p = f.properties;
+          const major = (p.pop || 0) >= 300000 || /capital/i.test(p.capital || '');
+          return L.circleMarker(latlng, {
+            pane: 'townPane', radius: major ? 4 : 3, color: '#111', weight: 1,
+            fillColor: '#fff', fillOpacity: 1, interactive: false,
+            className: major ? 'town-dot' : 'town-dot town-minor'
+          }).bindTooltip(p.name, {
+            permanent: true, direction: 'right', offset: [5, 0], interactive: false,
+            className: 'town-label ' + (major ? 'town-major' : 'town-minor'), pane: 'townPane'
+          });
+        }
+      });
+      return { layer, restyle: () => {} };
+    }
+    return null;
+  }
+
+  async function ensureReference(name) {
+    if (reference[name]) return reference[name];
+    const data = await fetchJSON(REFERENCE_SOURCES[name], null);
+    if (!data) return null;
+    reference[name] = buildReference(name, data);
+    return reference[name];
+  }
+
+  function refChecked(name) {
+    const box = document.querySelector('[data-ref="' + name + '"]');
+    return box && box.checked;
+  }
+
+  async function updateReferenceVisibility() {
+    for (const name of Object.keys(REFERENCE_SOURCES)) {
+      let show = refChecked(name) && !state.embed;
+      if (name === 'woredas') show = show && map.getZoom() >= 8;
+      if (show) {
+        const ref = await ensureReference(name);
+        if (ref && !map.hasLayer(ref.layer)) ref.layer.addTo(map);
+      } else if (reference[name] && map.hasLayer(reference[name].layer)) {
+        map.removeLayer(reference[name].layer);
+      }
+    }
+  }
+
+  function restyleReference() {
+    for (const ref of Object.values(reference)) if (ref) ref.restyle();
+  }
+
+  function setupReference() {
+    document.querySelectorAll('[data-ref]').forEach((box) => {
+      const saved = storage('ref-' + box.dataset.ref);
+      if (saved !== null) box.checked = saved === '1';
+      box.addEventListener('change', () => {
+        storage('ref-' + box.dataset.ref, box.checked ? '1' : '0');
+        updateReferenceVisibility();
+      });
+    });
   }
 
   // ---------- KML loading ----------
 
-  async function parseKmlSource(source) {
-    // source: { url } or { file }
+  async function parseKml(source) {
     let buffer;
     if (source.file) {
       buffer = await source.file.arrayBuffer();
@@ -255,8 +477,7 @@
     }
     const dom = new DOMParser().parseFromString(text, 'text/xml');
     if (dom.getElementsByTagName('parsererror').length) throw new Error('Invalid KML');
-    const docName = dom.querySelector('Document > name');
-    return { tree: toGeoJSON.kmlWithFolders(dom), name: docName ? docName.textContent.trim() : '' };
+    return toGeoJSON.kmlWithFolders(dom);
   }
 
   // Flatten the folder tree into one group per My Maps layer.
@@ -283,19 +504,73 @@
     return groups;
   }
 
-  // Properties that come from KML styling or structure rather than My Maps data columns.
-  const INTERNAL_PROPS = /^(name|description|styleUrl|styleHash|styleMap|stroke|stroke-opacity|stroke-width|fill|fill-opacity|icon|icon-color|icon-opacity|icon-scale|icon-heading|icon-offset|icon-offset-units|label-scale|label-color|label-opacity|visibility|timespan|timestamp|gx_media_links|marker-color)$/i;
-  function dataFields(p) {
-    return Object.entries(p)
-      .filter(([k, v]) => !INTERNAL_PROPS.test(k) && v !== '' && v !== null && typeof v !== 'object')
-      .map(([k, v]) => [k, String(v)]);
+  // A dataset is every layer at one point in time, with a record per feature.
+  function buildDataset(groups) {
+    const records = [];
+    groups.forEach((g) => {
+      const labels = styleLabels(g.features);
+      const seen = new Map();
+      g.features.forEach((feature) => {
+        const kind = geometryKind(feature);
+        if (!kind) return;
+        const p = feature.properties || {};
+        const base = g.name + '|' + (p.name || '#');
+        const n = (seen.get(base) || 0) + 1;
+        seen.set(base, n);
+        const sk = styleKey(feature);
+        records.push({
+          key: n > 1 ? base + '#' + n : base,
+          group: g.name,
+          feature,
+          kind,
+          color: featureColor(feature),
+          label: labels.get(sk) || null,
+          state: labels.get(sk) || featureColor(feature),
+          area: kind === 'polygon' ? Geo.areaKm2(feature.geometry) : 0,
+          date: kind === 'point' ? featureDate(p) : null
+        });
+      });
+    });
+    return { groups, records, byKey: new Map(records.map((r) => [r.key, r])) };
   }
 
-  function popupHtml(feature, groupName) {
-    const p = feature.properties || {};
+  function configuredLayers() {
+    const layers = state.config.layers || [];
+    return layers.length ? layers : [{ id: 'map', name: 'Map' }];
+  }
+
+  async function loadDataset(entry) {
+    const cacheKey = entry.snapshot ? entry.date : 'latest';
+    if (state.datasets.has(cacheKey)) return state.datasets.get(cacheKey);
+    const layers = configuredLayers().filter((l) => !entry.snapshot || !entry.snapshot.layers || entry.snapshot.layers.includes(l.id));
+    const results = await Promise.all(layers.map(async (l) => {
+      const url = entry.snapshot ? 'data/history/' + entry.date + '/' + l.id + '.kml' : 'data/layers/' + l.id + '.kml';
+      try {
+        return collectGroups(await parseKml({ url }), l.name);
+      } catch (err) {
+        return null;
+      }
+    }));
+    const groups = results.filter(Boolean).flat();
+    const dataset = groups.length ? buildDataset(groups) : null;
+    state.datasets.set(cacheKey, dataset);
+    return dataset;
+  }
+
+  // ---------- rendering the data ----------
+
+  const highlightLayer = L.layerGroup().addTo(map);
+
+  function popupContent(record) {
+    const p = record.feature.properties || {};
     const wrap = el('div');
-    wrap.append(el('div', { class: 'layer-tag', text: groupName }));
-    wrap.append(el('h3', { text: p.name || 'Untitled' }));
+    wrap.append(el('div', { class: 'layer-tag', text: record.group }));
+    wrap.append(el('h3', { text: p.name || t('untitled') }));
+    const change = state.changes.find((c) => c.key === record.key);
+    if (change && change.type === 'changed') {
+      wrap.append(el('div', { class: 'change-tag', text: t('changedFromTo', { from: change.from, to: change.to }) }));
+    }
+    if (record.date) wrap.append(el('div', { class: 'coords', text: formatDate(record.date) }));
     const desc = p.description && (typeof p.description === 'string' ? p.description : p.description.value);
     if (desc) {
       const d = el('div', { class: 'desc' });
@@ -305,93 +580,252 @@
     const fields = dataFields(p);
     if (fields.length) {
       const table = el('table', { class: 'fields' });
-      fields.forEach(([k, v]) => table.append(el('tr', {}, [el('th', { text: k }), el('td', { text: v })])));
+      fields.forEach(([k, v]) => {
+        let value = v;
+        if (/^https?:\/\/\S+$/i.test(v.trim())) {
+          let host = v;
+          try { host = new URL(v.trim()).hostname.replace(/^www\./, ''); } catch (e) { /* keep raw */ }
+          value = el('a', { href: v.trim(), target: '_blank', rel: 'noopener noreferrer', text: t('source') + ': ' + host });
+        }
+        table.append(el('tr', {}, [el('th', { text: k }), el('td', {}, value)]));
+      });
       wrap.append(table);
     }
-    if (feature.geometry && feature.geometry.type === 'Point') {
-      const [lng, lat] = feature.geometry.coordinates;
+    if (record.kind === 'point') {
+      const [lng, lat] = record.feature.geometry.coordinates;
       wrap.append(el('div', { class: 'coords', text: lat.toFixed(5) + ', ' + lng.toFixed(5) }));
     }
     return wrap;
   }
 
-  function clearGroups() {
+  function clearRendered() {
     for (const g of state.groups) map.removeLayer(g.layer);
+    highlightLayer.clearLayers();
     state.groups = [];
+    state.records = [];
     state.searchIndex = [];
   }
 
-  function renderGroups(rawGroups) {
-    clearGroups();
-    // Polygons render first (bottom), then lines, then points on top.
+  function renderDataset(dataset) {
+    const hidden = new Set(state.groups.filter((g) => !map.hasLayer(g.layer)).map((g) => g.name));
+    clearRendered();
+    if (!dataset) return;
     const panes = { polygon: 'overlayPane', line: 'overlayPane', point: 'markerPane' };
-    rawGroups.forEach((g) => {
+    const byGroup = new Map();
+    dataset.records.forEach((r) => {
+      if (!byGroup.has(r.group)) byGroup.set(r.group, []);
+      byGroup.get(r.group).push(r);
+    });
+    dataset.groups.forEach((g) => {
       const layer = L.featureGroup();
       const styles = new Map();
-      g.features.forEach((feature) => {
-        const kind = geometryKind(feature);
-        if (!kind) return;
-        const p = feature.properties || {};
-        const gj = L.geoJSON(feature, {
-          pane: panes[kind],
-          style: () => (kind === 'point' ? {} : pathStyle(p)),
+      (byGroup.get(g.name) || []).forEach((r) => {
+        const p = r.feature.properties || {};
+        const gj = L.geoJSON(r.feature, {
+          pane: panes[r.kind],
+          style: () => (r.kind === 'point' ? {} : pathStyle(p)),
           pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-            radius: 6,
-            color: '#0f1115',
-            weight: 1.5,
-            fillColor: pointColor(p),
-            fillOpacity: 0.95
+            radius: 6, color: '#0f1115', weight: 1.5, fillColor: pointColor(p), fillOpacity: 0.95
           })
         });
-        gj.bindPopup(() => popupHtml(feature, g.name), { maxWidth: 320 });
-        gj.addTo(layer);
-        const key = styleKey(feature);
-        const entry = styles.get(key) || { kind, color: key.split('|')[1] || '#e5484d', count: 0 };
+        gj.bindPopup(() => popupContent(r), { maxWidth: 320 });
+        const rendered = Object.assign({}, r, { layer: gj, groupLayer: layer });
+        state.records.push(rendered);
+        if (!eventHidden(rendered)) gj.addTo(layer);
+        const sk = r.kind + '|' + r.color;
+        const entry = styles.get(sk) || { kind: r.kind, color: r.color, label: r.label, count: 0 };
         entry.count++;
-        styles.set(key, entry);
-        if (p.name) state.searchIndex.push({ name: String(p.name), group: g.name, layer: gj, kind, color: entry.color });
+        styles.set(sk, entry);
+        if (p.name) state.searchIndex.push({ name: String(p.name), group: g.name, record: rendered });
       });
-      layer.addTo(map);
-      labelStyles(g.features, styles);
-      state.groups.push({ name: g.name, layer, count: g.features.length, styles: [...styles.values()] });
+      if (!hidden.has(g.name)) layer.addTo(map);
+      state.groups.push({ name: g.name, layer, count: (byGroup.get(g.name) || []).length, styles: [...styles.values()] });
     });
-    renderLayerList();
-    renderLegend();
   }
 
-  // My Maps "style by data column" gives each value its own colour, but the KML only
-  // keeps the colours. Find the column whose values line up one-to-one with the
-  // colours and use those values as legend labels.
-  function labelStyles(features, styles) {
-    if (styles.size < 2) return;
-    const columns = new Map(); // column -> Map(styleKey -> Set(values))
-    features.forEach((f) => {
-      const key = styleKey(f);
-      dataFields(f.properties || {}).forEach(([col, val]) => {
-        if (!columns.has(col)) columns.set(col, new Map());
-        const byStyle = columns.get(col);
-        if (!byStyle.has(key)) byStyle.set(key, new Set());
-        byStyle.get(key).add(val);
-      });
+  // ---------- events filter ----------
+
+  function viewDate() {
+    const entry = state.timeline[state.index];
+    if (!entry || !entry.snapshot || state.index === state.timeline.length - 1) return new Date();
+    return dayDate(entry.date);
+  }
+
+  function eventHidden(record) {
+    if (!state.eventDays || record.kind !== 'point' || !record.date) return false;
+    const age = (viewDate() - record.date) / 86400000;
+    return age > state.eventDays || age < -1;
+  }
+
+  function applyEventFilter() {
+    state.records.forEach((r) => {
+      if (r.kind !== 'point') return;
+      const hide = eventHidden(r);
+      if (hide && r.groupLayer.hasLayer(r.layer)) r.groupLayer.removeLayer(r.layer);
+      if (!hide && !r.groupLayer.hasLayer(r.layer)) r.groupLayer.addLayer(r.layer);
     });
-    for (const [, byStyle] of columns) {
-      if (byStyle.size !== styles.size) continue;
-      const labels = [...byStyle.values()];
-      if (!labels.every((v) => v.size === 1)) continue;
-      const flat = labels.map((v) => [...v][0]);
-      if (new Set(flat).size !== flat.length) continue;
-      for (const [key, vals] of byStyle) styles.get(key).label = [...vals][0];
+  }
+
+  function setupEventFilter() {
+    const box = document.getElementById('events-filter');
+    box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      state.eventDays = +b.dataset.days;
+      box.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+      applyEventFilter();
+    }));
+  }
+
+  // ---------- changes ----------
+
+  function computeChanges(current, baseline) {
+    if (!current || !baseline) return [];
+    const changes = [];
+    for (const r of current.records) {
+      if (r.kind !== 'polygon') continue;
+      const before = baseline.byKey.get(r.key);
+      if (!before) changes.push({ type: 'added', key: r.key, record: r, name: r.feature.properties.name, to: r.label || '' });
+      else if (before.state !== r.state) {
+        changes.push({
+          type: 'changed', key: r.key, record: r, before,
+          name: r.feature.properties.name,
+          from: before.label || t('other'), to: r.label || t('other')
+        });
+      }
+    }
+    for (const b of baseline.records) {
+      if (b.kind !== 'polygon' || current.byKey.has(b.key)) continue;
+      changes.push({ type: 'removed', key: b.key, record: b, name: b.feature.properties.name, from: b.label || '' });
+    }
+    return changes;
+  }
+
+  function renderHighlights() {
+    highlightLayer.clearLayers();
+    if (!document.getElementById('toggle-highlight').checked) return;
+    state.changes.forEach((c) => {
+      const removed = c.type === 'removed';
+      L.geoJSON(c.record.feature, {
+        pane: 'highlightPane', interactive: false,
+        style: {
+          color: removed ? '#9aa3b2' : '#ffd23f', weight: 3, opacity: 1,
+          dashArray: removed ? '4 4' : null, fill: removed, fillOpacity: 0.08,
+          className: removed ? '' : 'pulse'
+        }
+      }).addTo(highlightLayer);
+    });
+  }
+
+  function flyToRecord(record, openPopup) {
+    const b = L.geoJSON(record.feature).getBounds();
+    if (!b.isValid()) return;
+    if (b.getNorthEast().equals(b.getSouthWest())) map.flyTo(b.getCenter(), Math.max(map.getZoom(), 11));
+    else map.flyToBounds(b, { padding: [40, 40], maxZoom: 11 });
+    if (openPopup) {
+      const rendered = state.records.find((r) => r.key === record.key);
+      if (rendered) {
+        const g = state.groups.find((x) => x.name === rendered.group);
+        if (g && !map.hasLayer(g.layer)) { g.layer.addTo(map); renderLayerList(); }
+        map.once('moveend', () => rendered.layer.openPopup());
+      }
+    }
+    closePanelOnMobile();
+  }
+
+  function renderChanges() {
+    const list = document.getElementById('changes');
+    list.textContent = '';
+    if (!state.baseline) {
+      const earliest = state.timeline.length > 1 && state.index === 0;
+      list.append(el('li', { class: 'muted small', text: t(earliest ? 'earliest' : 'noHistory') }));
       return;
     }
+    if (!state.changes.length) {
+      list.append(el('li', { class: 'muted small', text: t('noChanges') }));
+      return;
+    }
+    const colorOf = (label, fallback) => {
+      const r = state.current && state.current.records.find((x) => x.label === label);
+      return r ? r.color : fallback;
+    };
+    state.changes.forEach((c) => {
+      let detail;
+      if (c.type === 'changed') {
+        detail = el('span', { class: 'change-detail' }, [
+          swatch('polygon', c.before.color), ' ' + c.from + ' → ', swatch('polygon', c.record.color), ' ' + c.to
+        ]);
+      } else {
+        const label = c.to || c.from;
+        detail = el('span', { class: 'change-detail' }, [
+          (c.type === 'added' ? t('added') : t('removed')) + (label ? ': ' : ''),
+          label ? swatch('polygon', colorOf(label, c.record.color)) : null,
+          label ? ' ' + label : ''
+        ]);
+      }
+      list.append(el('li', { onclick: () => flyToRecord(c.record, c.type !== 'removed') }, [
+        el('span', { class: 'change-name', text: c.name || t('untitled') }),
+        detail
+      ]));
+    });
   }
+
+  // ---------- overview statistics ----------
+
+  function tally(dataset) {
+    const out = new Map();
+    if (!dataset) return out;
+    dataset.records.forEach((r) => {
+      if (r.kind !== 'polygon') return;
+      const e = out.get(r.state) || { label: r.label || null, color: r.color, count: 0, area: 0 };
+      e.count++;
+      e.area += r.area;
+      out.set(r.state, e);
+    });
+    return out;
+  }
+
+  function renderOverview() {
+    const section = document.getElementById('overview-section');
+    const list = document.getElementById('overview');
+    list.textContent = '';
+    const labelled = [...tally(state.current).values()].filter((e) => e.label);
+    section.hidden = !labelled.length;
+    if (!labelled.length) return;
+    const before = tally(state.baseline);
+    const total = labelled.reduce((s, e) => s + e.area, 0) || 1;
+    labelled.sort((a, b) => b.area - a.area).forEach((e) => {
+      const prev = before.get(e.label);
+      let delta = null;
+      if (state.baseline) {
+        const d = e.area - (prev ? prev.area : 0);
+        if (Math.abs(d) >= 1) {
+          delta = el('span', { class: 'delta ' + (d > 0 ? 'up' : 'down'), title: t('lastWeek'),
+            text: (d > 0 ? '+' : '−') + Geo.formatNumber(Math.abs(d)) + ' km²' });
+        }
+      }
+      const pct = (100 * e.area / total).toFixed(1) + '%';
+      const fill = el('span');
+      fill.style.width = pct;
+      fill.style.background = e.color;
+      list.append(el('li', {}, [
+        el('div', { class: 'overview-row' }, [
+          swatch('polygon', e.color),
+          el('span', { class: 'name', text: e.label }),
+          el('span', { class: 'pct', text: pct })
+        ]),
+        el('div', { class: 'bar' }, fill),
+        el('div', { class: 'overview-meta' }, [
+          el('span', { text: t(e.count === 1 ? 'zone' : 'zones', { n: e.count }) + ' · ' + t('area', { n: Geo.formatNumber(e.area) }) }),
+          delta
+        ])
+      ]));
+    });
+  }
+
+  // ---------- layer list ----------
 
   function renderLayerList() {
     const list = document.getElementById('layer-list');
     list.textContent = '';
-    if (!state.groups.length) {
-      list.append(el('li', { class: 'empty', text: 'No map data loaded yet.' }));
-      return;
-    }
     state.groups.forEach((g) => {
       const main = g.styles.slice().sort((a, b) => b.count - a.count)[0];
       const cb = el('input', { type: 'checkbox' });
@@ -417,127 +851,133 @@
       }
       list.append(item);
     });
-  }
-
-  function renderLegend() {
-    const legend = document.getElementById('legend');
-    const entries = state.config.legend || [];
-    legend.textContent = '';
-    entries.forEach((item) => {
-      legend.append(el('li', {}, [swatch(item.type || 'polygon', item.color), el('span', { text: item.label })]));
+    (state.config.legend || []).forEach((item) => {
+      list.append(el('li', { class: 'manual-legend' }, [swatch(item.type || 'polygon', item.color), el('span', { class: 'name', text: item.label })]));
     });
-    document.getElementById('legend-section').hidden = !entries.length;
+    document.getElementById('events-filter').hidden = !state.records.some((r) => r.kind === 'point' && r.date);
   }
 
-  function fitToData() {
-    const bounds = L.latLngBounds([]);
-    state.groups.forEach((g) => { if (map.hasLayer(g.layer)) bounds.extend(g.layer.getBounds()); });
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
-  }
+  // ---------- timeline ----------
 
-  function showNotice(html, dismissable) {
-    const n = document.getElementById('notice');
-    n.innerHTML = '';
-    if (dismissable) n.append(el('button', { class: 'close', 'aria-label': 'Dismiss', text: '×', onclick: () => { n.hidden = true; } }));
-    const body = el('div');
-    body.innerHTML = html;
-    n.append(body);
-    n.hidden = false;
-  }
-
-  function configuredLayers() {
-    const layers = state.config.layers || [];
-    return layers.length ? layers : [{ id: 'map', name: 'Map' }];
-  }
-
-  // snapshot: null for the latest data, or an entry from data/history/index.json
-  async function loadLayers(snapshot) {
-    const layers = configuredLayers().filter((l) => !snapshot || !snapshot.layers || snapshot.layers.includes(l.id));
-    const results = await Promise.all(layers.map(async (l) => {
-      const url = snapshot ? 'data/history/' + snapshot.date + '/' + l.id + '.kml' : 'data/layers/' + l.id + '.kml';
-      try {
-        const { tree } = await parseKmlSource({ url });
-        return collectGroups(tree, l.name);
-      } catch (err) {
-        return null;
-      }
-    }));
-    const groups = results.filter(Boolean).flat();
-    renderGroups(groups);
-    if (groups.length) {
-      setEmbedMode(false);
-      document.getElementById('notice').hidden = true;
-      return true;
-    }
-    if (!snapshot && state.config.googleMyMapsId) {
-      // No synced data yet: show the live Google My Maps view instead of an empty map.
-      setEmbedMode(true);
-      return false;
-    }
-    showNotice(
-      '<b>No map data for this date.</b> You can drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
-    return false;
-  }
-
-  // Embed mode shows Google's own My Maps viewer, with all its layers, in place of
-  // the Leaflet map. It needs no synced data, so the site works before the first sync.
-  function setEmbedMode(on) {
-    const frame = document.getElementById('embed');
-    document.body.classList.toggle('embed-mode', on);
-    if (on && !frame.src) {
-      const c = map.getCenter();
-      frame.src = 'https://www.google.com/maps/d/embed?mid=' + encodeURIComponent(state.config.googleMyMapsId) +
-        '&ll=' + c.lat.toFixed(4) + '%2C' + c.lng.toFixed(4) + '&z=' + map.getZoom();
-    }
-    document.getElementById('embed-info').hidden = !on;
-    if (!on) map.invalidateSize();
-  }
-
-  async function loadFile(file) {
-    try {
-      const { tree } = await parseKmlSource({ file });
-      setEmbedMode(false);
-      renderGroups(collectGroups(tree, file.name.replace(/\.km[lz]$/i, '')));
-      fitToData();
-      return true;
-    } catch (err) {
-      showNotice('Could not read <b>' + file.name.replace(/[<>&]/g, '') + '</b>: ' + err.message, true);
-      return false;
-    }
-  }
-
-  // ---------- snapshots ----------
-
-  async function setupSnapshots(meta) {
-    const select = document.getElementById('snapshot-select');
-    const snapshots = await fetchJSON('data/history/index.json', []);
-    select.append(el('option', { value: '', text: meta.syncedAt ? formatDate(meta.syncedAt, true) : 'Latest' }));
-    snapshots.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach((h) => {
-      select.append(el('option', { value: h.date, text: formatDate(h.date + 'T12:00:00') }));
+  function compareIndex() {
+    if (state.timeline.length < 2 || state.index === 0) return -1;
+    if (state.compare === 'prev') return state.index - 1;
+    const target = viewDate().getTime() - state.compare * 86400000;
+    let best = -1;
+    state.timeline.forEach((e, i) => {
+      if (i < state.index && e.date && dayDate(e.date).getTime() <= target) best = i;
     });
-    select.addEventListener('change', () => loadLayers(snapshots.find((h) => h.date === select.value) || null));
+    return best >= 0 ? best : 0;
+  }
+
+  function timelineLabel(i) {
+    const e = state.timeline[i];
+    if (!e) return '';
+    if (i === state.timeline.length - 1 && state.meta.syncedAt) return formatDate(state.meta.syncedAt, true);
+    return e.date ? formatDate(dayDate(e.date)) : t('latest');
+  }
+
+  async function showIndex(i) {
+    state.preview = false;
+    state.index = Math.max(0, Math.min(i, state.timeline.length - 1));
+    const entry = state.timeline[state.index];
+    const ci = compareIndex();
+    const [current, baseline] = await Promise.all([
+      loadDataset(entry),
+      ci >= 0 ? loadDataset(state.timeline[ci]) : Promise.resolve(null)
+    ]);
+    state.current = current;
+    state.baseline = baseline;
+    state.changes = computeChanges(current, baseline);
+    renderDataset(current);
+    renderAll();
+    document.getElementById('timeline-range').value = state.index;
+    if (!current) showNotice(escapeText(t('noData')), true);
+    else document.getElementById('notice').hidden = true;
+    writeHash();
+  }
+
+  function renderCompareSelect() {
+    const select = document.getElementById('compare-select');
+    const value = String(state.compare);
+    select.textContent = '';
+    select.append(el('option', { value: 'prev', text: t('previousSnapshot') }));
+    [7, 30].forEach((n) => select.append(el('option', { value: String(n), text: t('daysAgo', { n }) })));
+    select.value = value;
+  }
+
+  let playTimer = null;
+  function setPlaying(on) {
+    clearInterval(playTimer);
+    playTimer = null;
+    document.getElementById('play-icon').setAttribute('d', on ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M7 5l12 7-12 7z');
+    const btn = document.getElementById('play-btn');
+    btn.dataset.i18nAria = on ? 'pause' : 'play';
+    btn.setAttribute('aria-label', t(btn.dataset.i18nAria));
+    if (!on) return;
+    if (state.index >= state.timeline.length - 1) showIndex(0);
+    playTimer = setInterval(() => {
+      if (state.index >= state.timeline.length - 1) { setPlaying(false); return; }
+      showIndex(state.index + 1);
+    }, 1400);
+  }
+
+  function setupTimeline() {
+    const bar = document.getElementById('timeline');
+    const range = document.getElementById('timeline-range');
+    range.max = Math.max(0, state.timeline.length - 1);
+    bar.hidden = state.timeline.length < 2;
+    range.addEventListener('input', () => {
+      setPlaying(false);
+      document.getElementById('timeline-label').textContent = timelineLabel(+range.value);
+    });
+    range.addEventListener('change', () => showIndex(+range.value));
+    document.getElementById('play-btn').addEventListener('click', () => setPlaying(!playTimer));
+    const select = document.getElementById('compare-select');
+    select.addEventListener('change', () => {
+      state.compare = select.value === 'prev' ? 'prev' : +select.value;
+      showIndex(state.index);
+    });
+    document.getElementById('toggle-highlight').addEventListener('change', renderHighlights);
   }
 
   // ---------- updates feed ----------
 
-  async function loadUpdates() {
-    const updates = await fetchJSON('data/updates.json', []);
+  let manualUpdates = [];
+  let autoUpdates = [];
+
+  function renderUpdates() {
     const list = document.getElementById('updates');
     list.textContent = '';
-    if (!updates.length) {
-      list.append(el('li', {}, [el('p', { class: 'muted', text: 'No updates posted yet.' })]));
+    const items = [
+      ...manualUpdates.map((u) => Object.assign({ auto: false }, u)),
+      ...autoUpdates.map((u) => Object.assign({ auto: true }, u))
+    ].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+    if (!items.length) {
+      list.append(el('li', {}, [el('p', { class: 'muted', text: t('noUpdates') })]));
       return;
     }
-    updates.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach((u) => {
+    items.forEach((u) => {
+      const text = u.auto
+        ? (u.name || t('untitled')) + ': ' + (u.type === 'added' ? t('added') + (u.to ? ' (' + u.to + ')' : '')
+          : u.type === 'removed' ? t('removed') : t('changedFromTo', { from: u.from, to: u.to }))
+        : u.text;
       const item = el('li', {}, [
-        el('time', { datetime: u.date, text: formatDate(u.date, /T/.test(u.date)) }),
-        el('p', { text: u.text })
+        el('time', { datetime: u.date }, [
+          formatDate(u.date, /T/.test(u.date)),
+          u.auto ? el('span', { class: 'badge', text: t('automatic') }) : null
+        ]),
+        el('p', { text })
       ]);
+      const record = u.auto && state.current && state.current.byKey.get(u.key);
       if (Array.isArray(u.location) && u.location.length === 2) {
-        item.append(el('a', {
-          class: 'go', text: 'Show on map →',
-          onclick: () => { map.flyTo(u.location, u.zoom || 10); closePanelOnMobile(); }
-        }));
+        item.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
+          e.preventDefault(); map.flyTo(u.location, u.zoom || 10); closePanelOnMobile();
+        } }));
+      } else if (record) {
+        item.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
+          e.preventDefault(); flyToRecord(record, true);
+        } }));
       }
       list.append(item);
     });
@@ -552,24 +992,17 @@
     let matches = [];
 
     const choose = (m) => {
-      const b = m.layer.getBounds();
-      if (b.isValid()) {
-        if (b.getNorthEast().equals(b.getSouthWest())) map.flyTo(b.getCenter(), Math.max(map.getZoom(), 11));
-        else map.flyToBounds(b, { padding: [40, 40], maxZoom: 11 });
-      }
-      const g = state.groups.find((x) => x.name === m.group);
-      if (g && !map.hasLayer(g.layer)) { g.layer.addTo(map); renderLayerList(); }
-      map.once('moveend', () => m.layer.openPopup());
       results.hidden = true;
       input.value = m.name;
-      closePanelOnMobile();
+      if (m.record) flyToRecord(m.record, true);
+      else { map.flyTo(m.latlng, 10); closePanelOnMobile(); }
     };
 
     const render = () => {
       results.textContent = '';
       matches.forEach((m, i) => {
         const li = el('li', { class: i === active ? 'active' : '' }, [
-          swatch(m.kind, m.color),
+          m.record ? swatch(m.record.kind, m.record.color) : el('span', { class: 'swatch point town' }),
           el('span', { text: m.name }),
           el('span', { class: 'sub', text: m.group })
         ]);
@@ -579,10 +1012,17 @@
       results.hidden = !matches.length;
     };
 
-    input.addEventListener('input', () => {
+    input.addEventListener('input', async () => {
       const q = input.value.trim().toLowerCase();
       active = -1;
-      matches = q ? state.searchIndex.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 30) : [];
+      if (!q) { matches = []; render(); return; }
+      const towns = await ensureReference('towns');
+      const townMatches = [];
+      if (towns) towns.layer.eachLayer((l) => {
+        const name = l.feature.properties.name;
+        if (name.toLowerCase().includes(q)) townMatches.push({ name, group: t('towns'), latlng: l.getLatLng() });
+      });
+      matches = state.searchIndex.filter((m) => m.name.toLowerCase().includes(q)).slice(0, 25).concat(townMatches.slice(0, 8));
       render();
     });
     input.addEventListener('keydown', (e) => {
@@ -594,21 +1034,117 @@
     input.addEventListener('blur', () => { results.hidden = true; });
   }
 
+  // ---------- sharing and corrections ----------
+
+  function shareText() {
+    return state.config.title + ' · ' + t('mapAsOf') + ' ' + document.getElementById('as-of-date').textContent;
+  }
+
+  function setupShare() {
+    const btn = document.getElementById('share-btn');
+    const menu = document.getElementById('share-menu');
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+        try { await navigator.share({ title: state.config.title, text: shareText(), url: location.href }); return; } catch (err) { /* cancelled */ }
+      }
+      menu.hidden = !menu.hidden;
+      btn.setAttribute('aria-expanded', String(!menu.hidden));
+    });
+    document.addEventListener('click', close);
+    menu.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const kind = e.target.dataset.share;
+      if (!kind) return;
+      const url = encodeURIComponent(location.href);
+      const text = encodeURIComponent(shareText());
+      const targets = {
+        telegram: 'https://t.me/share/url?url=' + url + '&text=' + text,
+        whatsapp: 'https://wa.me/?text=' + text + '%20' + url,
+        x: 'https://twitter.com/intent/tweet?url=' + url + '&text=' + text,
+        facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url
+      };
+      if (kind === 'copy') {
+        if (await copyText(location.href)) toast(t('copied'));
+      } else {
+        window.open(targets[kind], '_blank', 'noopener');
+      }
+      close();
+    });
+  }
+
+  function reportUrl(latlng) {
+    const params = new URLSearchParams({ template: 'correction.yml', title: 'Correction: ' });
+    if (latlng) params.set('location', latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5));
+    params.set('link', location.href);
+    return 'https://github.com/' + state.config.repo + '/issues/new?' + params.toString();
+  }
+
+  function setupCorrections() {
+    const link = document.getElementById('report-link');
+    link.href = reportUrl(null);
+    link.addEventListener('click', () => { link.href = reportUrl(null); });
+    map.on('contextmenu', (e) => {
+      const text = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+      const content = el('div', { class: 'context-menu' }, [
+        el('div', { class: 'coords', text }),
+        el('a', { href: reportUrl(e.latlng), target: '_blank', rel: 'noopener', text: t('reportHere') }),
+        el('a', { href: '#', text: t('copyCoords'), onclick: async (ev) => {
+          ev.preventDefault();
+          if (await copyText(text)) toast(t('copied'));
+        } })
+      ]);
+      L.popup({ maxWidth: 240 }).setLatLng(e.latlng).setContent(content).openOn(map);
+    });
+  }
+
   // ---------- panel ----------
 
+  const isMobile = () => window.matchMedia('(max-width: 720px)').matches;
   const toggleBtn = document.getElementById('panel-toggle');
   function setPanel(open) {
     document.body.classList.toggle('panel-closed', !open);
+    if (!open) document.body.classList.remove('sheet-full');
     toggleBtn.setAttribute('aria-expanded', String(open));
     setTimeout(() => map.invalidateSize(), 220);
   }
   function closePanelOnMobile() {
-    if (window.matchMedia('(max-width: 720px)').matches) setPanel(false);
+    if (isMobile()) setPanel(false);
   }
   toggleBtn.addEventListener('click', () => setPanel(document.body.classList.contains('panel-closed')));
-  if (window.matchMedia('(max-width: 720px)').matches) setPanel(false);
+  document.getElementById('sheet-handle').addEventListener('click', () => {
+    document.body.classList.toggle('sheet-full');
+  });
+  if (isMobile()) setPanel(false);
 
-  // ---------- drag & drop preview ----------
+  // ---------- notices, embed, drag & drop ----------
+
+  function showNotice(html, dismissable) {
+    const n = document.getElementById('notice');
+    n.innerHTML = '';
+    if (dismissable) n.append(el('button', { class: 'close', 'aria-label': 'Dismiss', text: '×', onclick: () => { n.hidden = true; } }));
+    const body = el('div');
+    body.innerHTML = html;
+    n.append(body);
+    n.hidden = false;
+  }
+
+  // Embed mode shows Google's own My Maps viewer, with all its layers, in place of
+  // the Leaflet map. It needs no synced data, so the site works before the first sync.
+  function setEmbedMode(on) {
+    state.embed = on;
+    const frame = document.getElementById('embed');
+    document.body.classList.toggle('embed-mode', on);
+    if (on && !frame.src) {
+      const c = map.getCenter();
+      frame.src = 'https://www.google.com/maps/d/embed?mid=' + encodeURIComponent(state.config.googleMyMapsId) +
+        '&ll=' + c.lat.toFixed(4) + '%2C' + c.lng.toFixed(4) + '&z=' + map.getZoom();
+    }
+    document.getElementById('embed-info').hidden = !on;
+    if (!on) map.invalidateSize();
+    updateReferenceVisibility();
+  }
 
   function setupDrop() {
     const hint = document.getElementById('drop-hint');
@@ -621,21 +1157,76 @@
       depth = 0; hint.hidden = true;
       const file = e.dataTransfer.files[0];
       if (!file) return;
-      if (await loadFile(file)) {
-        showNotice('Previewing <b>' + file.name.replace(/[<>&]/g, '') + '</b> locally. Reload the page to return to the published map.', true);
+      try {
+        const groups = collectGroups(await parseKml({ file }), file.name.replace(/\.km[lz]$/i, ''));
+        setPlaying(false);
+        setEmbedMode(false);
+        state.preview = true;
+        state.current = buildDataset(groups);
+        state.baseline = null;
+        state.changes = [];
+        renderDataset(state.current);
+        renderAll();
+        const bounds = L.latLngBounds([]);
+        state.groups.forEach((g) => bounds.extend(g.layer.getBounds()));
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+        showNotice(escapeText(t('previewing', { file: file.name })), true);
+      } catch (err) {
+        showNotice(escapeText(t('readError', { file: file.name, error: err.message })), true);
       }
+    });
+  }
+
+  // ---------- app install (PWA) ----------
+
+  function setupInstall() {
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
+    }
+    let deferred = null;
+    const btn = document.getElementById('install-btn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      btn.hidden = false;
+    });
+    btn.addEventListener('click', async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      await deferred.userChoice.catch(() => null);
+      deferred = null;
+      btn.hidden = true;
     });
   }
 
   // ---------- boot ----------
 
+  function renderAll() {
+    renderCompareSelect();
+    renderLayerList();
+    renderOverview();
+    renderChanges();
+    renderHighlights();
+    renderUpdates();
+    document.getElementById('changes-section').hidden = state.preview;
+    document.getElementById('timeline-label').textContent = timelineLabel(state.index);
+    document.getElementById('as-of-date').textContent = state.preview ? '–' : timelineLabel(state.index);
+  }
+
   async function init() {
-    const [config, meta] = await Promise.all([
+    const [config, meta, snapshots, updates, changes] = await Promise.all([
       fetchJSON('data/config.json', {}),
-      fetchJSON('data/meta.json', {})
+      fetchJSON('data/meta.json', {}),
+      fetchJSON('data/history/index.json', []),
+      fetchJSON('data/updates.json', []),
+      fetchJSON('data/changes.json', [])
     ]);
     state.config = Object.assign({}, DEFAULT_CONFIG, config);
+    state.meta = meta || {};
+    manualUpdates = Array.isArray(updates) ? updates : [];
+    autoUpdates = Array.isArray(changes) ? changes : [];
 
+    setupLanguage();
     document.title = state.config.title;
     document.getElementById('site-title').textContent = state.config.title;
     const src = document.getElementById('source-link');
@@ -646,14 +1237,36 @@
     if (fromHash) map.setView(fromHash.center, fromHash.zoom);
     else map.setView(state.config.center, state.config.zoom);
 
+    setBasemap(storage('basemap') || state.config.basemap);
+    setupReference();
     setupSearch();
+    setupShare();
+    setupCorrections();
     setupDrop();
-    renderLegend();
-    let savedBasemap = null;
-    try { savedBasemap = localStorage.getItem('basemap'); } catch (e) { /* storage unavailable */ }
-    setBasemap(savedBasemap || state.config.basemap);
-    await Promise.all([loadRegions(), loadUpdates(), setupSnapshots(meta)]);
-    await loadLayers(null);
+    setupEventFilter();
+    setupInstall();
+
+    // Timeline: one entry per daily snapshot; the newest uses the latest synced files.
+    const sorted = (Array.isArray(snapshots) ? snapshots : []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    state.timeline = sorted.map((s) => ({ date: s.date, snapshot: s }));
+    if (state.timeline.length) state.timeline[state.timeline.length - 1].snapshot = null;
+    else state.timeline = [{ date: null, snapshot: null }];
+    setupTimeline();
+
+    const latest = await loadDataset(state.timeline[state.timeline.length - 1]);
+    if (!latest && state.config.googleMyMapsId) {
+      // No synced data yet: show the live Google My Maps view instead of an empty map.
+      setEmbedMode(true);
+      renderAll();
+      return;
+    }
+    map.fire('zoomend');
+    let start = state.timeline.length - 1;
+    if (fromHash && fromHash.date) {
+      const i = state.timeline.findIndex((e) => e.date === fromHash.date);
+      if (i >= 0) start = i;
+    }
+    await showIndex(start);
   }
 
   init();

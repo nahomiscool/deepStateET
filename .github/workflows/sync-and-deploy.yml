@@ -36,16 +36,25 @@ jobs:
           git checkout -q -B "$BRANCH" FETCH_HEAD
       - name: Download map from Google My Maps
         run: node scripts/sync-map.mjs
+      - name: Build RSS feed
+        run: node scripts/build-feed.mjs
+      - name: Post to Telegram
+        # Optional: add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID as repository secrets to enable.
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/notify-telegram.mjs
       - name: Commit changes
         id: commit
         run: |
-          if [ -z "$(git status --porcelain data)" ]; then
+          if [ -z "$(git status --porcelain data feed.xml)" ]; then
             echo "No changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
+          git add data feed.xml
           git commit -q -m "Sync map data $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push -q origin "HEAD:$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"

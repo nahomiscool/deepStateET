@@ -3,6 +3,7 @@
 // so the site can show earlier dates.
 // Usage: node scripts/sync-map.mjs   (Node 18+, no dependencies)
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { diffLayers } from './lib/kml.mjs';
 
 const root = new URL('../', import.meta.url);
 const path = (p) => new URL(p, root);
@@ -38,6 +39,7 @@ async function download(url) {
 const now = new Date();
 const day = now.toISOString().slice(0, 10);
 const changed = [];
+const detected = [];
 let failed = 0;
 
 await mkdir(path('data/layers/'), { recursive: true });
@@ -56,9 +58,22 @@ for (const layer of layers) {
     console.log(`${layer.id}: unchanged`);
     continue;
   }
+  if (previous !== null) {
+    for (const c of diffLayers(previous, kml, layer.name)) {
+      detected.push({ id: `${now.toISOString()}|${c.key}`, date: now.toISOString(), ...c });
+    }
+  }
   await writeFile(path(file), kml);
   changed.push(layer.id);
   console.log(`${layer.id}: updated (${kml.length} bytes)`);
+}
+
+if (detected.length) {
+  // Automatic entries for the updates feed, RSS and Telegram (newest 500 kept).
+  const log = JSON.parse(await readFile(path('data/changes.json'), 'utf8').catch(() => '[]'));
+  log.push(...detected);
+  await writeFile(path('data/changes.json'), JSON.stringify(log.slice(-500), null, 2) + '\n');
+  console.log(`${detected.length} zone change(s) recorded.`);
 }
 
 if (changed.length) {

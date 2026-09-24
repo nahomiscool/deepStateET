@@ -4,15 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DeepState ET</title>
-  <meta name="description" content="Interactive situation map of Ethiopia: areas of control, frontlines and events, updated from a shared map.">
+  <meta name="description" content="Interactive situation map of Ethiopia: areas of control, changes over time and events, updated from a shared map.">
   <meta name="theme-color" content="#0f1115">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1115'/%3E%3Cpath d='M6 22 L13 9 L18 17 L21 12 L26 22 Z' fill='%23e5484d'/%3E%3C/svg%3E">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="DeepState ET: situation map of Ethiopia">
+  <meta property="og:description" content="Areas of control, changes over time and events across Ethiopia.">
+  <meta property="og:url" content="https://nahomiscool.github.io/deepStateET/">
+  <meta property="og:image" content="https://nahomiscool.github.io/deepStateET/img/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DeepState ET: situation map of Ethiopia">
+  <meta name="twitter:description" content="Areas of control, changes over time and events across Ethiopia.">
+  <meta name="twitter:image" content="https://nahomiscool.github.io/deepStateET/img/og-image.png">
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icon-192.png">
+  <link rel="alternate" type="application/rss+xml" title="DeepState ET updates" href="feed.xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <button class="icon-btn" id="panel-toggle" aria-label="Toggle panel" aria-expanded="true">
+    <button class="icon-btn" id="panel-toggle" data-i18n-aria="panel" aria-label="Panel" aria-expanded="true">
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
     <div class="brand">
@@ -20,66 +39,118 @@
       <span class="brand-name" id="site-title">DeepState ET</span>
     </div>
     <div class="topbar-meta">
-      <label class="date-pick" title="View an earlier snapshot">
-        <span class="muted">Map as of</span>
-        <select id="snapshot-select" aria-label="Map snapshot date"></select>
-      </label>
+      <span class="as-of data-only"><span class="muted" data-i18n="mapAsOf">Map as of</span> <b id="as-of-date">–</b></span>
+      <select id="lang-select" class="compact-select" aria-label="Language"></select>
+      <div class="share-wrap">
+        <button class="icon-btn" id="share-btn" data-i18n-aria="share" aria-label="Share" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        </button>
+        <div id="share-menu" class="menu" hidden>
+          <button data-share="copy" data-i18n="copyLink">Copy link</button>
+          <button data-share="telegram">Telegram</button>
+          <button data-share="whatsapp">WhatsApp</button>
+          <button data-share="x">X (Twitter)</button>
+          <button data-share="facebook">Facebook</button>
+        </div>
+      </div>
     </div>
   </header>
 
   <main class="layout">
     <aside class="panel" id="panel">
-      <section class="panel-section">
+      <button class="sheet-handle" id="sheet-handle" aria-label="Expand panel"></button>
+
+      <section class="panel-section data-only">
         <div class="search">
-          <input id="search" type="search" placeholder="Search places and markers" autocomplete="off" aria-label="Search">
+          <input id="search" type="search" data-i18n-placeholder="search" placeholder="Search places and markers" autocomplete="off" aria-label="Search">
           <ul id="search-results" class="search-results" hidden></ul>
         </div>
       </section>
 
-      <section class="panel-section">
-        <h2 class="section-title">Layers</h2>
-        <p id="embed-info" class="muted small" hidden>Showing the live Google My Maps view. Use the layer list in the map's
-          top-left corner. Layer switches, the legend and search appear here once the map data has been synced.</p>
-        <ul id="layer-list" class="layer-list"></ul>
+      <section class="panel-section data-only" id="overview-section" hidden>
+        <h2 class="section-title" data-i18n="overview">Control overview</h2>
+        <ul id="overview" class="overview"></ul>
+      </section>
+
+      <section class="panel-section data-only" id="changes-section">
+        <h2 class="section-title">
+          <span data-i18n="changesSince">Changes since</span>
+          <select id="compare-select" class="compact-select" aria-label="Compare with"></select>
+        </h2>
         <label class="toggle-row">
-          <input type="checkbox" id="toggle-regions" checked>
-          <span>Regional boundaries</span>
+          <input type="checkbox" id="toggle-highlight" checked>
+          <span data-i18n="highlightChanges">Highlight changes on the map</span>
         </label>
+        <ul id="changes" class="changes"></ul>
+      </section>
+
+      <section class="panel-section">
+        <h2 class="section-title" data-i18n="layers">Layers</h2>
+        <p id="embed-info" class="muted small" data-i18n="embedInfo" hidden></p>
+        <ul id="layer-list" class="layer-list data-only"></ul>
+        <div id="events-filter" class="segmented data-only" hidden>
+          <span class="muted small" data-i18n="events">Events</span>
+          <div class="segments">
+            <button data-days="0" class="active" data-i18n="allTime">All</button>
+            <button data-days="30" data-i18n="last30">Last 30 days</button>
+            <button data-days="7" data-i18n="last7">Last 7 days</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-section data-only">
+        <h2 class="section-title" data-i18n="referenceLayers">Reference layers</h2>
+        <label class="toggle-row"><input type="checkbox" data-ref="regions" checked><span data-i18n="regions">Regions</span></label>
+        <label class="toggle-row"><input type="checkbox" data-ref="zones"><span data-i18n="adminZones">Administrative zones</span></label>
+        <label class="toggle-row"><input type="checkbox" data-ref="woredas"><span data-i18n="woredas">Woredas (zoom in)</span></label>
+        <label class="toggle-row"><input type="checkbox" data-ref="roads"><span data-i18n="roads">Main roads</span></label>
+        <label class="toggle-row"><input type="checkbox" data-ref="towns" checked><span data-i18n="towns">Towns and cities</span></label>
         <label class="select-row">
-          <span>Basemap</span>
+          <span data-i18n="basemap">Basemap</span>
           <select id="basemap-select" aria-label="Basemap"></select>
         </label>
       </section>
 
-      <section class="panel-section" id="legend-section" hidden>
-        <h2 class="section-title">Legend</h2>
-        <ul id="legend" class="legend"></ul>
-      </section>
-
       <section class="panel-section grow">
-        <h2 class="section-title">Updates</h2>
+        <h2 class="section-title">
+          <span data-i18n="updates">Updates</span>
+          <a href="feed.xml" class="rss-link" data-i18n="rss">RSS feed</a>
+        </h2>
         <ol id="updates" class="updates"></ol>
       </section>
 
       <footer class="panel-footer">
-        <a id="source-link" href="#" target="_blank" rel="noopener">Source map</a>
+        <a id="report-link" href="#" target="_blank" rel="noopener" data-i18n="reportCorrection">Report a correction</a>
+        <span class="dot">·</span>
+        <a id="source-link" href="#" target="_blank" rel="noopener" data-i18n="sourceMap">Source map</a>
         <span class="dot">·</span>
         <a href="https://github.com/nahomiscool/deepStateET" target="_blank" rel="noopener">GitHub</a>
-        <p class="muted small">Boundaries: geoBoundaries (CC BY 4.0). Basemaps © Google, © OpenStreetMap contributors, © CARTO.</p>
+        <button id="install-btn" class="link-btn" data-i18n="install" hidden>Install app</button>
+        <p class="muted small">Boundaries: geoBoundaries (CC BY 4.0). Roads and towns: Natural Earth. Basemaps © Google, © OpenStreetMap contributors, © CARTO.</p>
       </footer>
     </aside>
 
     <div class="map-wrap">
       <div id="map" role="application" aria-label="Map of Ethiopia"></div>
       <iframe id="embed" title="Ethiopia map (Google My Maps)" allowfullscreen></iframe>
+      <div id="timeline" class="timeline" hidden>
+        <button id="play-btn" class="icon-btn" data-i18n-aria="play" aria-label="Play">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path id="play-icon" d="M7 5l12 7-12 7z" fill="currentColor"/></svg>
+        </button>
+        <input id="timeline-range" type="range" min="0" max="0" step="1" value="0" aria-label="Snapshot date">
+        <span id="timeline-label" class="timeline-label"></span>
+      </div>
       <div id="notice" class="notice" hidden></div>
-      <div id="drop-hint" class="drop-hint" hidden>Drop a .kml or .kmz file to preview it</div>
+      <div id="toast" class="toast" hidden></div>
+      <div id="drop-hint" class="drop-hint" data-i18n="dropHint" hidden>Drop a .kml or .kmz file to preview it</div>
     </div>
   </main>
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/togeojson.umd.js"></script>
   <script src="vendor/jszip.min.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/geo.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

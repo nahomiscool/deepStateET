@@ -1,0 +1,29 @@
+name: Map correction
+description: Report something on the map that is wrong or out of date.
+title: "Correction: "
+labels: ["correction"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Place name or coordinates (right-click / long-press the map and choose "Report a correction here" to fill this in).
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What is wrong, and what should it show?
+      placeholder: e.g. "Zone X is shown as controlled by A, but since 20 Sep it has been controlled by B."
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources
+      description: Links to reports, posts or other evidence.
+  - type: input
+    id: link
+    attributes:
+      label: Map link
+      description: The map view you were looking at (filled in automatically).
