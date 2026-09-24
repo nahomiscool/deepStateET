@@ -2,7 +2,6 @@ name: Sync & deploy
 
 on:
   push:
-    branches: [main]
   schedule:
     - cron: '*/30 * * * *'   # pull the latest Google My Maps data every 30 minutes
   workflow_dispatch:
@@ -18,16 +17,19 @@ concurrency:
 
 jobs:
   sync:
+    # Only the branch GitHub Pages publishes (the default branch) keeps synced data.
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
+      pages: ${{ steps.pages.outputs.build_type }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Download map from Google My Maps
-        # A failed download still deploys the site with the last synced data.
+        # A failed download still publishes the site with the last synced data.
         continue-on-error: true
         run: node scripts/sync-map.mjs
       - name: Commit changes
@@ -42,16 +44,31 @@ jobs:
             git push
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Check how GitHub Pages is set up
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || echo none)
+          echo "GitHub Pages build type: $type"
+          echo "build_type=$type" >> "$GITHUB_OUTPUT"
+      - name: Rebuild Pages (deploy from branch)
+        # Pushes made by this workflow don't always start a Pages build, so request one.
+        if: steps.pages.outputs.build_type == 'legacy' && steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds"
       - uses: actions/configure-pages@v5
-        if: github.event_name != 'schedule' || steps.commit.outputs.changed == 'true'
+        if: steps.pages.outputs.build_type == 'workflow' && (github.event_name != 'schedule' || steps.commit.outputs.changed == 'true')
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'schedule' || steps.commit.outputs.changed == 'true'
+        if: steps.pages.outputs.build_type == 'workflow' && (github.event_name != 'schedule' || steps.commit.outputs.changed == 'true')
         with:
           path: .
 
   deploy:
+    # Only when Pages is set to "GitHub Actions" as its source.
     needs: sync
-    if: github.event_name != 'schedule' || needs.sync.outputs.changed == 'true'
+    if: needs.sync.outputs.pages == 'workflow' && (github.event_name != 'schedule' || needs.sync.outputs.changed == 'true')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

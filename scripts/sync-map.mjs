@@ -21,10 +21,18 @@ if (!layers.length) {
 async function download(url) {
   const u = new URL(url);
   u.searchParams.set('forcekml', '1'); // plain KML instead of a zipped KMZ
-  const res = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (DeepStateET map sync)' } });
-  const text = await res.text();
-  if (!res.ok || !text.includes('<kml')) throw new Error(`HTTP ${res.status}`);
-  return text;
+  // Links copied while signed in carry an account path (/u/0/); try without it too.
+  const candidates = [u.toString()];
+  const plain = u.toString().replace(/\/maps\/d\/u\/\d+\//, '/maps/d/');
+  if (plain !== candidates[0]) candidates.push(plain);
+  let lastError;
+  for (const candidate of candidates) {
+    const res = await fetch(candidate, { headers: { 'User-Agent': 'Mozilla/5.0 (DeepStateET map sync)' } });
+    const text = await res.text();
+    if (res.ok && text.includes('<kml')) return text;
+    lastError = `HTTP ${res.status} from ${candidate}: ${text.slice(0, 200).replace(/\s+/g, ' ')}`;
+  }
+  throw new Error(lastError);
 }
 
 const now = new Date();
