@@ -176,3 +176,30 @@ input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; m
   .date-pick .muted { display: none; }
   .brand-name { font-size: 15px; }
 }
+
+/* Basemap picker */
+.select-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.select-row span { flex: 1; }
+.select-row select {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 8px; font: inherit; max-width: 190px;
+}
+
+/* Per-layer legend built from the layer's colours */
+.layer-list > li { flex-wrap: wrap; }
+.sublegend { list-style: none; margin: 2px 0 4px 25px; padding: 0; width: 100%; }
+.sublegend li { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.sublegend .name { flex: 1; }
+.sublegend .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Data columns in popups */
+.leaflet-popup-content table.fields { margin-top: 8px; border-collapse: collapse; font-size: 12px; width: 100%; }
+.leaflet-popup-content table.fields th {
+  text-align: left; color: var(--muted); font-weight: 600;
+  padding: 3px 10px 3px 0; vertical-align: top; white-space: nowrap;
+}
+.leaflet-popup-content table.fields td { padding: 3px 0; overflow-wrap: anywhere; }
+
+/* On light Google basemaps, draw region names and borders dark */
+body.light-basemap .region-label { color: rgba(30,34,42,.7); text-shadow: 0 0 3px #fff, 0 0 3px #fff; }

@@ -1,8 +1,9 @@
 # DeepState ET
 
-A [DeepState](https://deepstatemap.live)-style situation map for Ethiopia. It shows the layers of a
+A [DeepState](https://deepstatemap.live)-style situation map for Ethiopia. It shows layers from a
 Google My Maps map ([source](https://www.google.com/maps/d/viewer?mid=1XPJWGQgVK216o5nXwIpydH-y5ebbj24))
-on a dark, full-screen map with layer toggles, search, dated snapshots and an updates feed.
+on top of Google Maps, with layer toggles, a colour legend, search, dated snapshots and an updates feed.
+You can switch the background between Google Maps, Satellite, Terrain and a dark map.
 
 It is a static site with no build step. The libraries (Leaflet, togeojson, JSZip) are copied into `vendor/`.
 
@@ -11,12 +12,28 @@ It is a static site with no build step. The libraries (Leaflet, togeojson, JSZip
 You keep editing the map in **Google My Maps** as usual. The GitHub Action
 `.github/workflows/sync-and-deploy.yml` runs every 30 minutes and does the rest:
 
-1. It downloads the map as KML from `https://www.google.com/maps/d/kml?mid=<id>&forcekml=1` into `data/map.kml`.
-2. If anything changed, it saves a daily snapshot in `data/history/` and commits both.
+1. It downloads each layer listed under `layers` in `data/config.json` into `data/layers/<id>.kml`.
+2. If anything changed, it saves a daily snapshot in `data/history/<date>/` and commits it.
 3. It publishes the site to GitHub Pages.
 
-Each My Maps layer becomes a toggle in the sidebar. The site keeps the colours, line widths and
-fill opacity you set in My Maps. Descriptions show in the popups, and links and images in them still work.
+Each layer becomes a toggle in the sidebar. The site keeps the colours, line widths and
+fill opacity you set in My Maps. Popups show each place's description and its data columns.
+If you styled a layer by a data column (for example "Controller"), the sidebar lists each colour with its value.
+
+## Adding a layer
+
+1. In My Maps, open the layer's ⋮ menu and choose **Export to KML/KMZ**.
+2. Pick the layer, tick **Keep data up to date with network link KML (KML only)**, and download the file.
+3. Put it in `data/sources/` and run:
+
+   ```sh
+   node scripts/add-layer.mjs data/sources/<file>.kml
+   ```
+
+   This adds the layer's link to `layers` in `data/config.json`. You can also add an entry there by hand:
+   `{ "id": "short-id", "name": "Layer name", "url": "<the href from the file>" }`.
+
+The "Ethiopia Control Zones (by administrative zone)" layer is already added (`data/sources/control-zones.kml`).
 
 ## Setup
 
@@ -25,14 +42,14 @@ fill opacity you set in My Maps. Descriptions show in the popups, and links and 
 2. **Enable Pages.** In the repo, go to *Settings → Pages → Build and deployment* and set the source to **GitHub Actions**.
 3. **Merge to `main`** and run the **Sync & deploy** workflow once from the *Actions* tab (*Run workflow*).
 
-To use a different map, change `googleMyMapsId` in `data/config.json`. The id is the `mid=` part of the map URL.
-
 ## Configuration: `data/config.json`
 
 | Key | Meaning |
 | --- | --- |
 | `title` | Name shown in the top bar and browser tab |
-| `googleMyMapsId` | The My Maps `mid` to sync from |
+| `googleMyMapsId` | The My Maps `mid`. Used for the "Source map" link, and synced as one whole-map layer when `layers` is empty |
+| `layers` | Layers to sync and show: `{ "id", "name", "url" }` |
+| `basemap` | Default background: `google-roadmap`, `google-hybrid`, `google-satellite`, `google-terrain` or `dark` |
 | `center`, `zoom` | Initial view (`[lat, lng]`) |
 | `legend` | Optional legend entries, e.g. `{ "color": "#c0392b", "label": "Controlled by X", "type": "polygon" }` (`type`: `polygon`, `line` or `point`) |
 
@@ -57,4 +74,4 @@ To preview a map without syncing it, drag a `.kml` or `.kmz` export onto the map
 
 ## Credits
 
-Regional boundaries: [geoBoundaries](https://www.geoboundaries.org) (CC BY 4.0). Basemaps: © OpenStreetMap contributors, © CARTO, Esri World Imagery.
+Regional boundaries: [geoBoundaries](https://www.geoboundaries.org) (CC BY 4.0). Basemaps: © Google, © OpenStreetMap contributors, © CARTO.

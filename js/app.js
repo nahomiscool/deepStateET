@@ -138,19 +138,34 @@
     preferCanvas: false
   });
 
-  const baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  const GOOGLE_ATTR = 'Map data &copy; Google';
+  const googleTiles = (lyrs) => L.tileLayer('https://mt{s}.google.com/vt/lyrs=' + lyrs + '&hl=en&x={x}&y={y}&z={z}', {
+    subdomains: '0123', maxZoom: 20, attribution: GOOGLE_ATTR
   });
-  const baseSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19,
-    attribution: 'Imagery &copy; Esri'
-  });
-  const satLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 19, pane: 'shadowPane'
-  });
-  baseDark.addTo(map);
+  const BASEMAPS = {
+    'google-roadmap': { label: 'Google Maps', layer: googleTiles('m') },
+    'google-hybrid': { label: 'Google Satellite (labels)', layer: googleTiles('y') },
+    'google-satellite': { label: 'Google Satellite', layer: googleTiles('s') },
+    'google-terrain': { label: 'Google Terrain', layer: googleTiles('p') },
+    'dark': {
+      label: 'Dark',
+      layer: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      })
+    }
+  };
+  let currentBasemap = null;
+  function setBasemap(key) {
+    if (!BASEMAPS[key]) key = 'google-roadmap';
+    if (currentBasemap) map.removeLayer(currentBasemap);
+    currentBasemap = BASEMAPS[key].layer.addTo(map);
+    currentBasemap.bringToBack();
+    document.body.classList.toggle('light-basemap', key === 'google-roadmap' || key === 'google-terrain');
+    document.getElementById('basemap-select').value = key;
+    try { localStorage.setItem('basemap', key); } catch (e) { /* storage unavailable */ }
+  }
   map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
   L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
 
@@ -170,13 +185,9 @@
   map.on('mousemove', (e) => coords.update(e.latlng));
   map.on('mouseout', () => coords.update(null));
 
-  document.getElementById('toggle-satellite').addEventListener('change', (e) => {
-    if (e.target.checked) {
-      map.removeLayer(baseDark); baseSat.addTo(map); satLabels.addTo(map);
-    } else {
-      map.removeLayer(baseSat); map.removeLayer(satLabels); baseDark.addTo(map);
-    }
-  });
+  const basemapSelect = document.getElementById('basemap-select');
+  for (const [key, b] of Object.entries(BASEMAPS)) basemapSelect.append(el('option', { value: key, text: b.label }));
+  basemapSelect.addEventListener('change', () => setBasemap(basemapSelect.value));
 
   // URL hash keeps the current view shareable: #zoom/lat/lng
   function readHash() {
@@ -196,7 +207,7 @@
     if (!data) return;
     state.regionsLayer = L.geoJSON(data, {
       interactive: false,
-      style: { color: '#9aa3b2', weight: 1, opacity: 0.55, dashArray: '4 4', fill: false }
+      style: { color: '#5b6472', weight: 1.2, opacity: 0.7, dashArray: '4 4', fill: false }
     });
     // City-regions are tiny, so only label them once zoomed in.
     const small = new Set(['ET-AA', 'ET-DD', 'ET-HA']);
@@ -249,7 +260,7 @@
   }
 
   // Flatten the folder tree into one group per My Maps layer.
-  function collectGroups(tree) {
+  function collectGroups(tree, fallbackName) {
     const groups = [];
     const loose = [];
     const visit = (node, path) => {
@@ -268,8 +279,16 @@
       }
     };
     visit(tree, '');
-    if (loose.length) groups.unshift({ name: 'Map', features: loose });
+    if (loose.length) groups.unshift({ name: fallbackName || 'Map', features: loose });
     return groups;
+  }
+
+  // Properties that come from KML styling or structure rather than My Maps data columns.
+  const INTERNAL_PROPS = /^(name|description|styleUrl|styleHash|styleMap|stroke|stroke-opacity|stroke-width|fill|fill-opacity|icon|icon-color|icon-opacity|icon-scale|icon-heading|icon-offset|icon-offset-units|label-scale|label-color|label-opacity|visibility|timespan|timestamp|gx_media_links|marker-color)$/i;
+  function dataFields(p) {
+    return Object.entries(p)
+      .filter(([k, v]) => !INTERNAL_PROPS.test(k) && v !== '' && v !== null && typeof v !== 'object')
+      .map(([k, v]) => [k, String(v)]);
   }
 
   function popupHtml(feature, groupName) {
@@ -282,6 +301,12 @@
       const d = el('div', { class: 'desc' });
       d.innerHTML = sanitize(desc);
       wrap.append(d);
+    }
+    const fields = dataFields(p);
+    if (fields.length) {
+      const table = el('table', { class: 'fields' });
+      fields.forEach(([k, v]) => table.append(el('tr', {}, [el('th', { text: k }), el('td', { text: v })])));
+      wrap.append(table);
     }
     if (feature.geometry && feature.geometry.type === 'Point') {
       const [lng, lat] = feature.geometry.coordinates;
@@ -327,10 +352,37 @@
         if (p.name) state.searchIndex.push({ name: String(p.name), group: g.name, layer: gj, kind, color: entry.color });
       });
       layer.addTo(map);
+      labelStyles(g.features, styles);
       state.groups.push({ name: g.name, layer, count: g.features.length, styles: [...styles.values()] });
     });
     renderLayerList();
     renderLegend();
+  }
+
+  // My Maps "style by data column" gives each value its own colour, but the KML only
+  // keeps the colours. Find the column whose values line up one-to-one with the
+  // colours and use those values as legend labels.
+  function labelStyles(features, styles) {
+    if (styles.size < 2) return;
+    const columns = new Map(); // column -> Map(styleKey -> Set(values))
+    features.forEach((f) => {
+      const key = styleKey(f);
+      dataFields(f.properties || {}).forEach(([col, val]) => {
+        if (!columns.has(col)) columns.set(col, new Map());
+        const byStyle = columns.get(col);
+        if (!byStyle.has(key)) byStyle.set(key, new Set());
+        byStyle.get(key).add(val);
+      });
+    });
+    for (const [, byStyle] of columns) {
+      if (byStyle.size !== styles.size) continue;
+      const labels = [...byStyle.values()];
+      if (!labels.every((v) => v.size === 1)) continue;
+      const flat = labels.map((v) => [...v][0]);
+      if (new Set(flat).size !== flat.length) continue;
+      for (const [key, vals] of byStyle) styles.get(key).label = [...vals][0];
+      return;
+    }
   }
 
   function renderLayerList() {
@@ -347,14 +399,23 @@
       cb.addEventListener('change', () => {
         if (cb.checked) g.layer.addTo(map); else map.removeLayer(g.layer);
       });
-      list.append(el('li', {}, [
+      const item = el('li', {}, [
         el('label', {}, [
           cb,
           main ? swatch(main.kind, main.color) : null,
           el('span', { class: 'name', text: g.name, title: g.name }),
           el('span', { class: 'count', text: String(g.count) })
         ])
-      ]));
+      ]);
+      const labelled = g.styles.filter((st) => st.label).sort((a, b) => b.count - a.count);
+      if (labelled.length) {
+        item.append(el('ul', { class: 'sublegend' }, labelled.map((st) => el('li', {}, [
+          swatch(st.kind, st.color),
+          el('span', { class: 'name', text: st.label }),
+          el('span', { class: 'count', text: String(st.count) })
+        ]))));
+      }
+      list.append(item);
     });
   }
 
@@ -384,26 +445,45 @@
     n.hidden = false;
   }
 
-  async function loadMap(source, opts) {
-    try {
-      const { tree } = await parseKmlSource(source);
-      renderGroups(collectGroups(tree));
+  function configuredLayers() {
+    const layers = state.config.layers || [];
+    return layers.length ? layers : [{ id: 'map', name: 'Map' }];
+  }
+
+  // snapshot: null for the latest data, or an entry from data/history/index.json
+  async function loadLayers(snapshot) {
+    const layers = configuredLayers().filter((l) => !snapshot || !snapshot.layers || snapshot.layers.includes(l.id));
+    const results = await Promise.all(layers.map(async (l) => {
+      const url = snapshot ? 'data/history/' + snapshot.date + '/' + l.id + '.kml' : 'data/layers/' + l.id + '.kml';
+      try {
+        const { tree } = await parseKmlSource({ url });
+        return collectGroups(tree, l.name);
+      } catch (err) {
+        return null;
+      }
+    }));
+    const groups = results.filter(Boolean).flat();
+    renderGroups(groups);
+    if (groups.length) {
       document.getElementById('notice').hidden = true;
-      if (opts && opts.fit) fitToData();
+      return true;
+    }
+    const mid = state.config.googleMyMapsId;
+    showNotice(
+      '<b>No map data yet.</b> Layers appear once the <b>Sync &amp; deploy</b> GitHub Action has downloaded them' +
+      (mid ? ' from <a target="_blank" rel="noopener" href="https://www.google.com/maps/d/viewer?mid=' + encodeURIComponent(mid) + '">the source map</a>' : '') +
+      ' into <code>data/layers/</code>. You can also drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
+    return false;
+  }
+
+  async function loadFile(file) {
+    try {
+      const { tree } = await parseKmlSource({ file });
+      renderGroups(collectGroups(tree, file.name.replace(/\.km[lz]$/i, '')));
+      fitToData();
       return true;
     } catch (err) {
-      clearGroups();
-      renderLayerList();
-      if (source.file) {
-        showNotice('Could not read <b>' + source.file.name.replace(/[<>&]/g, '') + '</b>: ' + err.message, true);
-      } else {
-        const mid = state.config.googleMyMapsId;
-        showNotice(
-          '<b>No map data yet.</b> The site shows the layers of your Google My Map once ' +
-          '<code>data/map.kml</code> exists. Run the <b>Sync &amp; deploy</b> GitHub Action to fetch it' +
-          (mid ? ' from <a target="_blank" rel="noopener" href="https://www.google.com/maps/d/viewer?mid=' + encodeURIComponent(mid) + '">the source map</a>' : '') +
-          ', or drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
-      }
+      showNotice('Could not read <b>' + file.name.replace(/[<>&]/g, '') + '</b>: ' + err.message, true);
       return false;
     }
   }
@@ -412,12 +492,12 @@
 
   async function setupSnapshots(meta) {
     const select = document.getElementById('snapshot-select');
-    const history = await fetchJSON('data/history/index.json', []);
-    select.append(el('option', { value: 'data/map.kml', text: meta.syncedAt ? formatDate(meta.syncedAt, true) : 'Latest' }));
-    history.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach((h) => {
-      select.append(el('option', { value: 'data/history/' + h.file, text: formatDate(h.date + 'T12:00:00') }));
+    const snapshots = await fetchJSON('data/history/index.json', []);
+    select.append(el('option', { value: '', text: meta.syncedAt ? formatDate(meta.syncedAt, true) : 'Latest' }));
+    snapshots.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach((h) => {
+      select.append(el('option', { value: h.date, text: formatDate(h.date + 'T12:00:00') }));
     });
-    select.addEventListener('change', () => loadMap({ url: select.value }));
+    select.addEventListener('change', () => loadLayers(snapshots.find((h) => h.date === select.value) || null));
   }
 
   // ---------- updates feed ----------
@@ -523,7 +603,7 @@
       depth = 0; hint.hidden = true;
       const file = e.dataTransfer.files[0];
       if (!file) return;
-      if (await loadMap({ file }, { fit: true })) {
+      if (await loadFile(file)) {
         showNotice('Previewing <b>' + file.name.replace(/[<>&]/g, '') + '</b> locally. Reload the page to return to the published map.', true);
       }
     });
@@ -551,8 +631,11 @@
     setupSearch();
     setupDrop();
     renderLegend();
+    let savedBasemap = null;
+    try { savedBasemap = localStorage.getItem('basemap'); } catch (e) { /* storage unavailable */ }
+    setBasemap(savedBasemap || state.config.basemap);
     await Promise.all([loadRegions(), loadUpdates(), setupSnapshots(meta)]);
-    await loadMap({ url: 'data/map.kml' });
+    await loadLayers(null);
   }
 
   init();

@@ -1,7 +1,18 @@
 {
   "title": "DeepState ET",
   "googleMyMapsId": "1XPJWGQgVK216o5nXwIpydH-y5ebbj24",
-  "center": [9.1, 40.5],
+  "center": [
+    9.1,
+    40.5
+  ],
   "zoom": 6,
+  "basemap": "google-roadmap",
+  "layers": [
+    {
+      "id": "control-zones",
+      "name": "Ethiopia Control Zones (by administrative zone)",
+      "url": "https://www.google.com/maps/d/u/0/kml?forcekml=1&mid=1XPJWGQgVK216o5nXwIpydH-y5ebbj24&lid=zb5093tffH4"
+    }
+  ],
   "legend": []
 }

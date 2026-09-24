@@ -1,5 +1,6 @@
-// Downloads the Google My Maps layer data as KML into data/map.kml.
-// Keeps one snapshot per day in data/history/ so the site can show earlier dates.
+// Downloads each Google My Maps layer listed in data/config.json ("layers") as KML
+// into data/layers/<id>.kml. Keeps one snapshot per day in data/history/<date>/
+// so the site can show earlier dates.
 // Usage: node scripts/sync-map.mjs   (Node 18+, no dependencies)
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
@@ -7,37 +8,67 @@ const root = new URL('../', import.meta.url);
 const path = (p) => new URL(p, root);
 
 const config = JSON.parse(await readFile(path('data/config.json'), 'utf8'));
-const mid = process.env.MY_MAPS_ID || config.googleMyMapsId;
-if (!mid) {
-  console.error('No map id: set googleMyMapsId in data/config.json');
+let layers = config.layers || [];
+if (!layers.length && config.googleMyMapsId) {
+  // No layers listed: sync the whole map as a single file.
+  layers = [{ id: 'map', name: 'Map', url: `https://www.google.com/maps/d/kml?forcekml=1&mid=${config.googleMyMapsId}` }];
+}
+if (!layers.length) {
+  console.error('::error::No layers in data/config.json');
   process.exit(1);
 }
 
-const url = `https://www.google.com/maps/d/kml?mid=${encodeURIComponent(mid)}&forcekml=1`;
-const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (DeepStateET map sync)' } });
-const kml = await res.text();
-if (!res.ok || !kml.includes('<kml')) {
-  console.error(`::error::Failed to download KML (HTTP ${res.status}). Make sure the map is shared as "Anyone with the link can view".`);
-  process.exit(1);
-}
-
-const previous = await readFile(path('data/map.kml'), 'utf8').catch(() => null);
-if (previous === kml) {
-  console.log('Map unchanged.');
-  process.exit(0);
+async function download(url) {
+  const u = new URL(url);
+  u.searchParams.set('forcekml', '1'); // plain KML instead of a zipped KMZ
+  const res = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (DeepStateET map sync)' } });
+  const text = await res.text();
+  if (!res.ok || !text.includes('<kml')) throw new Error(`HTTP ${res.status}`);
+  return text;
 }
 
 const now = new Date();
 const day = now.toISOString().slice(0, 10);
-await mkdir(path('data/history/'), { recursive: true });
-await writeFile(path('data/map.kml'), kml);
-await writeFile(path(`data/history/${day}.kml`), kml);
+const changed = [];
+let failed = 0;
 
-const index = JSON.parse(await readFile(path('data/history/index.json'), 'utf8').catch(() => '[]'))
-  .filter((h) => h.date !== day);
-index.push({ date: day, file: `${day}.kml` });
-index.sort((a, b) => a.date.localeCompare(b.date));
-await writeFile(path('data/history/index.json'), JSON.stringify(index, null, 2) + '\n');
-await writeFile(path('data/meta.json'), JSON.stringify({ syncedAt: now.toISOString() }, null, 2) + '\n');
+await mkdir(path('data/layers/'), { recursive: true });
+for (const layer of layers) {
+  let kml;
+  try {
+    kml = await download(layer.url);
+  } catch (err) {
+    failed++;
+    console.error(`::error::Layer "${layer.id}" failed to download (${err.message}). Make sure the map is shared as "Anyone with the link can view".`);
+    continue;
+  }
+  const file = `data/layers/${layer.id}.kml`;
+  const previous = await readFile(path(file), 'utf8').catch(() => null);
+  if (previous === kml) {
+    console.log(`${layer.id}: unchanged`);
+    continue;
+  }
+  await writeFile(path(file), kml);
+  changed.push(layer.id);
+  console.log(`${layer.id}: updated (${kml.length} bytes)`);
+}
 
-console.log(`Map updated (${kml.length} bytes), snapshot ${day}.`);
+if (changed.length) {
+  // Snapshot every layer (not just the changed ones) so each day is complete.
+  await mkdir(path(`data/history/${day}/`), { recursive: true });
+  const saved = [];
+  for (const layer of layers) {
+    const kml = await readFile(path(`data/layers/${layer.id}.kml`), 'utf8').catch(() => null);
+    if (kml === null) continue;
+    await writeFile(path(`data/history/${day}/${layer.id}.kml`), kml);
+    saved.push(layer.id);
+  }
+  const index = JSON.parse(await readFile(path('data/history/index.json'), 'utf8').catch(() => '[]'))
+    .filter((h) => h.date !== day);
+  index.push({ date: day, layers: saved });
+  index.sort((a, b) => a.date.localeCompare(b.date));
+  await writeFile(path('data/history/index.json'), JSON.stringify(index, null, 2) + '\n');
+  await writeFile(path('data/meta.json'), JSON.stringify({ syncedAt: now.toISOString() }, null, 2) + '\n');
+}
+
+if (failed === layers.length) process.exit(1);
