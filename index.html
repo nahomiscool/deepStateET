@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DeepState ET</title>
+  <meta name="description" content="Interactive situation map of Ethiopia: areas of control, frontlines and events, updated from a shared map.">
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1115'/%3E%3Cpath d='M6 22 L13 9 L18 17 L21 12 L26 22 Z' fill='%23e5484d'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="panel-toggle" aria-label="Toggle panel" aria-expanded="true">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name" id="site-title">DeepState ET</span>
+    </div>
+    <div class="topbar-meta">
+      <label class="date-pick" title="View an earlier snapshot">
+        <span class="muted">Map as of</span>
+        <select id="snapshot-select" aria-label="Map snapshot date"></select>
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" id="panel">
+      <section class="panel-section">
+        <div class="search">
+          <input id="search" type="search" placeholder="Search places and markers" autocomplete="off" aria-label="Search">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2 class="section-title">Layers</h2>
+        <ul id="layer-list" class="layer-list"></ul>
+        <label class="toggle-row">
+          <input type="checkbox" id="toggle-regions" checked>
+          <span>Regional boundaries</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="toggle-satellite">
+          <span>Satellite basemap</span>
+        </label>
+      </section>
+
+      <section class="panel-section" id="legend-section" hidden>
+        <h2 class="section-title">Legend</h2>
+        <ul id="legend" class="legend"></ul>
+      </section>
+
+      <section class="panel-section grow">
+        <h2 class="section-title">Updates</h2>
+        <ol id="updates" class="updates"></ol>
+      </section>
+
+      <footer class="panel-footer">
+        <a id="source-link" href="#" target="_blank" rel="noopener">Source map</a>
+        <span class="dot">·</span>
+        <a href="https://github.com/nahomiscool/deepStateET" target="_blank" rel="noopener">GitHub</a>
+        <p class="muted small">Boundaries: geoBoundaries (CC BY 4.0). Basemap © OpenStreetMap contributors, © CARTO, Esri.</p>
+      </footer>
+    </aside>
+
+    <div class="map-wrap">
+      <div id="map" role="application" aria-label="Map of Ethiopia"></div>
+      <div id="notice" class="notice" hidden></div>
+      <div id="drop-hint" class="drop-hint" hidden>Drop a .kml or .kmz file to preview it</div>
+    </div>
+  </main>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/togeojson.umd.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
