@@ -38,6 +38,8 @@
 
       <section class="panel-section">
         <h2 class="section-title">Layers</h2>
+        <p id="embed-info" class="muted small" hidden>Showing the live Google My Maps view. Use the layer list in the map's
+          top-left corner. Layer switches, the legend and search appear here once the map data has been synced.</p>
         <ul id="layer-list" class="layer-list"></ul>
         <label class="toggle-row">
           <input type="checkbox" id="toggle-regions" checked>
@@ -69,6 +71,7 @@
 
     <div class="map-wrap">
       <div id="map" role="application" aria-label="Map of Ethiopia"></div>
+      <iframe id="embed" title="Ethiopia map (Google My Maps)" allowfullscreen></iframe>
       <div id="notice" class="notice" hidden></div>
       <div id="drop-hint" class="drop-hint" hidden>Drop a .kml or .kmz file to preview it</div>
     </div>

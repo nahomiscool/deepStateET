@@ -465,20 +465,38 @@
     const groups = results.filter(Boolean).flat();
     renderGroups(groups);
     if (groups.length) {
+      setEmbedMode(false);
       document.getElementById('notice').hidden = true;
       return true;
     }
-    const mid = state.config.googleMyMapsId;
+    if (!snapshot && state.config.googleMyMapsId) {
+      // No synced data yet: show the live Google My Maps view instead of an empty map.
+      setEmbedMode(true);
+      return false;
+    }
     showNotice(
-      '<b>No map data yet.</b> Layers appear once the <b>Sync map</b> GitHub Action has downloaded them' +
-      (mid ? ' from <a target="_blank" rel="noopener" href="https://www.google.com/maps/d/viewer?mid=' + encodeURIComponent(mid) + '">the source map</a>' : '') +
-      ' into <code>data/layers/</code>. You can also drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
+      '<b>No map data for this date.</b> You can drop a <code>.kml</code>/<code>.kmz</code> export onto the map to preview it.', true);
     return false;
+  }
+
+  // Embed mode shows Google's own My Maps viewer, with all its layers, in place of
+  // the Leaflet map. It needs no synced data, so the site works before the first sync.
+  function setEmbedMode(on) {
+    const frame = document.getElementById('embed');
+    document.body.classList.toggle('embed-mode', on);
+    if (on && !frame.src) {
+      const c = map.getCenter();
+      frame.src = 'https://www.google.com/maps/d/embed?mid=' + encodeURIComponent(state.config.googleMyMapsId) +
+        '&ll=' + c.lat.toFixed(4) + '%2C' + c.lng.toFixed(4) + '&z=' + map.getZoom();
+    }
+    document.getElementById('embed-info').hidden = !on;
+    if (!on) map.invalidateSize();
   }
 
   async function loadFile(file) {
     try {
       const { tree } = await parseKmlSource({ file });
+      setEmbedMode(false);
       renderGroups(collectGroups(tree, file.name.replace(/\.km[lz]$/i, '')));
       fitToData();
       return true;
