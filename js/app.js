@@ -30,6 +30,7 @@
     changes: [],
     eventDays: 0,
     embed: false,
+    live: false,
     preview: false
   };
 
@@ -534,6 +535,15 @@
     return { groups, records, byKey: new Map(records.map((r) => [r.key, r])) };
   }
 
+  // The Google Apps Script proxy (config.liveProxy) serves the current My Maps layers
+  // directly, so the latest map works even when the sync workflow can't run.
+  function liveUrl(layer) {
+    if (!state.config.liveProxy || !layer.url) return null;
+    let lid = '';
+    try { lid = new URL(layer.url).searchParams.get('lid') || ''; } catch (e) { /* no layer id */ }
+    return state.config.liveProxy + (state.config.liveProxy.includes('?') ? '&' : '?') + 'lid=' + encodeURIComponent(lid);
+  }
+
   function configuredLayers() {
     const layers = state.config.layers || [];
     return layers.length ? layers : [{ id: 'map', name: 'Map' }];
@@ -544,12 +554,17 @@
     if (state.datasets.has(cacheKey)) return state.datasets.get(cacheKey);
     const layers = configuredLayers().filter((l) => !entry.snapshot || !entry.snapshot.layers || entry.snapshot.layers.includes(l.id));
     const results = await Promise.all(layers.map(async (l) => {
-      const url = entry.snapshot ? 'data/history/' + entry.date + '/' + l.id + '.kml' : 'data/layers/' + l.id + '.kml';
-      try {
-        return collectGroups(await parseKml({ url }), l.name);
-      } catch (err) {
-        return null;
+      const urls = entry.snapshot
+        ? ['data/history/' + entry.date + '/' + l.id + '.kml']
+        : [liveUrl(l), 'data/layers/' + l.id + '.kml'].filter(Boolean);
+      for (const url of urls) {
+        try {
+          const groups = collectGroups(await parseKml({ url }), l.name);
+          if (url === urls[0] && !entry.snapshot && state.config.liveProxy) state.live = true;
+          return groups;
+        } catch (err) { /* try the next source */ }
       }
+      return null;
     }));
     const groups = results.filter(Boolean).flat();
     const dataset = groups.length ? buildDataset(groups) : null;
@@ -873,6 +888,7 @@
   function timelineLabel(i) {
     const e = state.timeline[i];
     if (!e) return '';
+    if (i === state.timeline.length - 1 && state.live) return t('live');
     if (i === state.timeline.length - 1 && state.meta.syncedAt) return formatDate(state.meta.syncedAt, true);
     return e.date ? formatDate(dayDate(e.date)) : t('latest');
   }

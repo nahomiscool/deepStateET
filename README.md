@@ -40,6 +40,21 @@ Each layer becomes a toggle in the sidebar. The site keeps the colours, line wid
 fill opacity you set in My Maps. Popups show each place's description and its data columns.
 If you styled a layer by a data column (for example "Controller"), the sidebar lists each colour with its value.
 
+## Live data without GitHub Actions (Google Apps Script)
+
+If the GitHub workflow can't run, the site can load your layers straight from Google through a small
+script in your own Google account:
+
+1. Open https://script.google.com and click **New project**.
+2. Delete the sample code, paste the contents of [`tools/live-proxy.gs`](tools/live-proxy.gs), and click **Save**.
+3. Click **Deploy → New deployment**, click the gear icon and choose **Web app**.
+   Set *Execute as* to **Me** and *Who has access* to **Anyone**, then click **Deploy** and allow the permissions.
+4. Copy the **Web app URL** (it ends in `/exec`) into `"liveProxy"` in `data/config.json`.
+
+The map then shows your current layers, with switches, legend, search and statistics, and the date reads "Live".
+The script only serves your own map, and asks Google for it at most once every 5 minutes.
+The day-by-day history, change map, RSS and Telegram still come from the GitHub workflow.
+
 ## Adding a layer
 
 1. In My Maps, open the layer's ⋮ menu and choose **Export to KML/KMZ**.
@@ -81,6 +96,7 @@ The first run only records what already exists. After that, each sync posts new 
 | `repo` | `owner/name` of this repository, used for "Report a correction" |
 | `googleMyMapsId` | The My Maps `mid`. Used for the "Source map" link, and synced as one whole-map layer when `layers` is empty |
 | `layers` | Layers to sync and show: `{ "id", "name", "url" }` |
+| `liveProxy` | Optional Google Apps Script web app URL that serves the live layers (see above) |
 | `basemap` | Default background: `google-roadmap`, `google-hybrid`, `google-satellite`, `google-terrain` or `dark` |
 | `center`, `zoom` | Initial view (`[lat, lng]`) |
 | `legend` | Optional legend entries, e.g. `{ "color": "#c0392b", "label": "Controlled by X", "type": "polygon" }` (`type`: `polygon`, `line` or `point`) |
