@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached, and map data falls back to the last copy
 // seen when the network is unavailable. Bump VERSION when shell files change.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'js/app.js', 'js/i18n.js', 'js/geo.js', 'js/events.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/togeojson.umd.js', 'vendor/jszip.min.js',

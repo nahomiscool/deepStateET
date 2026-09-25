@@ -312,3 +312,43 @@ body.embed-mode .data-only { display: none !important; }
   .timeline { bottom: 16px; }
   body:not(.panel-closed) .timeline { display: none; }
 }
+
+/* Event icons (see js/events.js) */
+.event-icon { background: none; border: none; }
+.event-pin {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border-radius: 50%; background: var(--c); color: #fff;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.55);
+  box-sizing: border-box;
+}
+.event-icon .event-pin { transition: transform .12s ease; }
+.event-icon:hover .event-pin { transform: scale(1.18); }
+.mini-icon { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+.mini-icon .event-pin { border-width: 1.5px; }
+.leaflet-popup-content .layer-tag { display: flex; align-items: center; }
+
+/* Latest news */
+#news-section .segments { margin-bottom: 10px; }
+.icon-key { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); }
+.icon-key li { display: flex; align-items: center; gap: 5px; }
+.icon-key .event-pin { border-width: 1.5px; }
+.updates li { display: flex; gap: 10px; align-items: flex-start; }
+.updates li.clickable { cursor: pointer; }
+.updates li.clickable:hover p { color: #fff; }
+.updates li.empty { display: block; }
+.update-icon { flex: none; margin-top: 2px; }
+.update-body { flex: 1; min-width: 0; }
+.update-body p { overflow-wrap: anywhere; }
+.update-links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+/* Map settings (collapsed by default) */
+.settings summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+}
+.settings summary::-webkit-details-marker { display: none; }
+.settings summary::before { content: "⚙"; font-size: 14px; }
+.settings summary::after { content: "▾"; margin-left: auto; transition: transform .15s; }
+.settings[open] summary::after { transform: rotate(180deg); }
+.settings[open] summary { margin-bottom: 8px; }
+.sub-title { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }

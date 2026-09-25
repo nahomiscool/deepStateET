@@ -28,6 +28,7 @@
     records: [],          // rendered features: { key, group, feature, layer, kind, state, color, area, date }
     searchIndex: [],
     changes: [],
+    posts: [],            // news and events: { id, date, type, text, lat, lng, source }
     eventDays: 0,
     embed: false,
     live: false,
@@ -51,6 +52,7 @@
     for (const [k, v] of Object.entries(attrs || {})) {
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = v;
+      else if (k === 'html') node.innerHTML = v; // only used with our own icon markup
       else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
       else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v);
     }
@@ -188,6 +190,11 @@
     return p['icon-color'] || p['marker-color'] || p.stroke || '#e5484d';
   }
 
+  // Event type of a point: set by the dashboard, or guessed from a My Maps "Type" column or name.
+  function pointType(p) {
+    return eventType(p._type) || guessEventType(p);
+  }
+
   function geometryKind(feature) {
     const type = feature.geometry && feature.geometry.type;
     if (!type) return null;
@@ -199,7 +206,10 @@
   function featureColor(feature) {
     const p = feature.properties || {};
     const kind = geometryKind(feature);
-    if (kind === 'point') return pointColor(p);
+    if (kind === 'point') {
+      const type = pointType(p);
+      return type ? type.color : pointColor(p);
+    }
     if (kind === 'line') return p.stroke || '#e5484d';
     return p.fill || p.stroke || '#e5484d';
   }
@@ -216,7 +226,7 @@
   }
 
   // Properties that come from KML styling or structure rather than My Maps data columns.
-  const INTERNAL_PROPS = /^(name|description|styleUrl|styleHash|styleMap|stroke|stroke-opacity|stroke-width|fill|fill-opacity|icon|icon-color|icon-opacity|icon-scale|icon-heading|icon-offset|icon-offset-units|label-scale|label-color|label-opacity|visibility|timespan|timestamp|gx_media_links|marker-color)$/i;
+  const INTERNAL_PROPS = /^(name|description|styleUrl|styleHash|styleMap|stroke|stroke-opacity|stroke-width|fill|fill-opacity|icon|icon-color|icon-opacity|icon-scale|icon-heading|icon-offset|icon-offset-units|label-scale|label-color|label-opacity|visibility|timespan|timestamp|gx_media_links|marker-color|_type|_postId)$/i;
   const DATE_PROPS = /^(date|time|when|day|event date|date of event|ቀን|guyyaa)$/i;
 
   function dataFields(p) {
@@ -567,29 +577,36 @@
       return null;
     }));
     const groups = results.filter(Boolean).flat();
-    const events = dashboardEvents(entry.snapshot ? dayDate(entry.date) : null);
+    const events = postFeatures(entry.snapshot ? dayDate(entry.date) : null);
     if (events.length) groups.push({ name: t('events'), features: events });
     const dataset = groups.length ? buildDataset(groups) : null;
     state.datasets.set(cacheKey, dataset);
     return dataset;
   }
 
-  // Event markers added in the dashboard (admin.html), as GeoJSON features.
-  // For a past snapshot, only events up to that day are included.
-  let dashboardMarkers = [];
-  function dashboardEvents(until) {
+  // Posts from the dashboard (admin.html) and data/updates.json that have a location,
+  // as GeoJSON points. For a past snapshot, only posts up to that day are included.
+  function postFeatures(until) {
     const end = until ? until.getTime() + 12 * 3600000 : Infinity;
-    return dashboardMarkers
-      .filter((m) => isFinite(m.lat) && isFinite(m.lng) && (Geo.parseDate(m.date) || new Date(0)).getTime() <= end)
-      .map((m) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [m.lng, m.lat] },
-        properties: Object.assign(
-          { name: m.title, 'marker-color': eventColor(m.type), Type: m.type || 'Other', Date: String(m.date).slice(0, 10) },
-          m.description ? { description: m.description } : {},
-          m.source ? { Source: m.source } : {}
-        )
-      }));
+    return state.posts
+      .filter((post) => post.lat !== '' && post.lng !== '' && isFinite(post.lat) && isFinite(post.lng) &&
+        (Geo.parseDate(post.date) || new Date(0)).getTime() <= end)
+      .map((post) => {
+        const type = eventType(post.type) || eventType('update');
+        const firstLine = post.text.split('\n')[0];
+        return {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [+post.lng, +post.lat] },
+          properties: Object.assign(
+            {
+              name: firstLine.length > 90 ? firstLine.slice(0, 87) + '…' : firstLine,
+              'marker-color': type.color, _type: type.id, _postId: post.id, timestamp: post.date
+            },
+            post.text !== firstLine || firstLine.length > 90 ? { description: post.text } : {},
+            post.source ? { Source: post.source } : {}
+          )
+        };
+      });
   }
 
   // ---------- rendering the data ----------
@@ -599,7 +616,10 @@
   function popupContent(record) {
     const p = record.feature.properties || {};
     const wrap = el('div');
-    wrap.append(el('div', { class: 'layer-tag', text: record.group }));
+    const ptype = record.kind === 'point' ? pointType(p) : null;
+    wrap.append(el('div', { class: 'layer-tag' }, ptype
+      ? [el('span', { class: 'mini-icon', html: eventIconHtml(ptype, 18) }), typeLabel(ptype)]
+      : [record.group]));
     wrap.append(el('h3', { text: p.name || t('untitled') }));
     const change = state.changes.find((c) => c.key === record.key);
     if (change && change.type === 'changed') {
@@ -620,7 +640,7 @@
         if (/^https?:\/\/\S+$/i.test(v.trim())) {
           let host = v;
           try { host = new URL(v.trim()).hostname.replace(/^www\./, ''); } catch (e) { /* keep raw */ }
-          value = el('a', { href: v.trim(), target: '_blank', rel: 'noopener noreferrer', text: t('source') + ': ' + host });
+          value = el('a', { href: v.trim(), target: '_blank', rel: 'noopener noreferrer', text: host + ' ↗' });
         }
         table.append(el('tr', {}, [el('th', { text: k }), el('td', {}, value)]));
       });
@@ -659,9 +679,16 @@
         const gj = L.geoJSON(r.feature, {
           pane: panes[r.kind],
           style: () => (r.kind === 'point' ? {} : pathStyle(p)),
-          pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-            radius: 6, color: '#0f1115', weight: 1.5, fillColor: pointColor(p), fillOpacity: 0.95
-          })
+          pointToLayer: (f, latlng) => {
+            const type = pointType(p);
+            if (type) {
+              return L.marker(latlng, {
+                riseOnHover: true,
+                icon: L.divIcon({ className: 'event-icon', html: eventIconHtml(type, 28), iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -12] })
+              });
+            }
+            return L.circleMarker(latlng, { radius: 6, color: '#0f1115', weight: 1.5, fillColor: pointColor(p), fillOpacity: 0.95 });
+          }
         });
         gj.bindPopup(() => popupContent(r), { maxWidth: 320 });
         const rendered = Object.assign({}, r, { layer: gj, groupLayer: layer });
@@ -707,6 +734,7 @@
       state.eventDays = +b.dataset.days;
       box.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
       applyEventFilter();
+      renderUpdates();
     }));
   }
 
@@ -889,7 +917,6 @@
     (state.config.legend || []).forEach((item) => {
       list.append(el('li', { class: 'manual-legend' }, [swatch(item.type || 'polygon', item.color), el('span', { class: 'name', text: item.label })]));
     });
-    document.getElementById('events-filter').hidden = !state.records.some((r) => r.kind === 'point' && r.date);
   }
 
   // ---------- timeline ----------
@@ -979,44 +1006,88 @@
 
   // ---------- updates feed ----------
 
-  let manualUpdates = [];
   let autoUpdates = [];
+
+  function typeLabel(type) {
+    const key = 'type.' + type.id;
+    const label = t(key);
+    return label === key ? type.label : label;
+  }
+
+  function inPeriod(date) {
+    if (!state.eventDays) return true;
+    const d = Geo.parseDate(date);
+    if (!d) return true;
+    const age = (viewDate() - d) / 86400000;
+    return age <= state.eventDays && age >= -1;
+  }
 
   function renderUpdates() {
     const list = document.getElementById('updates');
     list.textContent = '';
     const items = [
-      ...manualUpdates.map((u) => Object.assign({ auto: false }, u)),
+      ...state.posts.map((u) => Object.assign({ auto: false }, u)),
       ...autoUpdates.map((u) => Object.assign({ auto: true }, u))
-    ].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+    ].filter((u) => inPeriod(u.date)).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 80);
     if (!items.length) {
-      list.append(el('li', {}, [el('p', { class: 'muted', text: t('noUpdates') })]));
+      list.append(el('li', { class: 'empty' }, [el('p', { class: 'muted', text: t('noUpdates') })]));
       return;
     }
     items.forEach((u) => {
+      const type = u.auto ? eventType('captured') : (eventType(u.type) || eventType('update'));
       const text = u.auto
         ? (u.name || t('untitled')) + ': ' + (u.type === 'added' ? t('added') + (u.to ? ' (' + u.to + ')' : '')
           : u.type === 'removed' ? t('removed') : t('changedFromTo', { from: u.from, to: u.to }))
         : u.text;
-      const item = el('li', {}, [
+      const body = el('div', { class: 'update-body' }, [
         el('time', { datetime: u.date }, [
-          formatDate(u.date, /T/.test(u.date)),
+          typeLabel(type) + ' · ' + formatDate(u.date, /T/.test(u.date)),
           u.auto ? el('span', { class: 'badge', text: t('automatic') }) : null
         ]),
         el('p', { text })
       ]);
-      const record = u.auto && state.current && state.current.byKey.get(u.key);
-      if (Array.isArray(u.location) && u.location.length === 2) {
-        item.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
-          e.preventDefault(); map.flyTo(u.location, u.zoom || 10); closePanelOnMobile();
-        } }));
-      } else if (record) {
-        item.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
+      const links = el('div', { class: 'update-links' });
+      const record = u.auto
+        ? state.current && state.current.byKey.get(u.key)
+        : state.records.find((r) => r.feature.properties._postId === u.id);
+      if (record) {
+        links.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
           e.preventDefault(); flyToRecord(record, true);
         } }));
+      } else if (u.lat !== undefined && u.lat !== '' && isFinite(u.lat)) {
+        links.append(el('a', { class: 'go', href: '#', text: t('showOnMap'), onclick: (e) => {
+          e.preventDefault(); map.flyTo([+u.lat, +u.lng], u.zoom || 10); closePanelOnMobile();
+        } }));
+      }
+      if (u.source && /^https?:\/\//i.test(u.source)) {
+        let host = u.source;
+        try { host = new URL(u.source).hostname.replace(/^www\./, ''); } catch (e) { /* keep raw */ }
+        links.append(el('a', { class: 'go', href: u.source, target: '_blank', rel: 'noopener noreferrer', text: t('source') + ': ' + host }));
+      }
+      if (links.children.length) body.append(links);
+      const item = el('li', {}, [el('span', { class: 'update-icon', html: eventIconHtml(type, 26) }), body]);
+      if (record) {
+        item.classList.add('clickable');
+        item.addEventListener('click', (e) => { if (e.target.tagName !== 'A') flyToRecord(record, true); });
       }
       list.append(item);
     });
+  }
+
+  // Icon key: the event types that are on the map right now.
+  function renderIconKey() {
+    const key = document.getElementById('icon-key');
+    key.textContent = '';
+    const present = new Map();
+    state.records.forEach((r) => {
+      if (r.kind !== 'point') return;
+      const type = pointType(r.feature.properties || {});
+      if (type) present.set(type.id, type);
+    });
+    EVENT_TYPES.filter((type) => present.has(type.id)).forEach((type) => {
+      key.append(el('li', {}, [el('span', { html: eventIconHtml(type, 18) }), typeLabel(type)]));
+    });
+    key.hidden = !key.children.length;
   }
 
   // ---------- search ----------
@@ -1244,7 +1315,8 @@
     renderChanges();
     renderHighlights();
     renderUpdates();
-    document.getElementById('changes-section').hidden = state.preview;
+    renderIconKey();
+    document.getElementById('changes-section').hidden = state.preview || state.timeline.length < 2;
     document.getElementById('timeline-label').textContent = timelineLabel(state.index);
     document.getElementById('as-of-date').textContent = state.preview ? '–' : timelineLabel(state.index);
   }
@@ -1259,15 +1331,18 @@
     ]);
     state.config = Object.assign({}, DEFAULT_CONFIG, config);
     state.meta = meta || {};
-    manualUpdates = Array.isArray(updates) ? updates : [];
     autoUpdates = Array.isArray(changes) ? changes : [];
+    // Posts: data/updates.json (edited on GitHub) plus everything published from the dashboard.
+    state.posts = (Array.isArray(updates) ? updates : []).map((u, i) => ({
+      id: 'file-' + i, date: u.date, type: u.type || 'update', text: String(u.text || ''),
+      lat: Array.isArray(u.location) ? u.location[0] : '', lng: Array.isArray(u.location) ? u.location[1] : '',
+      zoom: u.zoom, source: u.source || ''
+    }));
     if (state.config.liveProxy) {
-      // Updates and markers posted from the dashboard.
       const sep = state.config.liveProxy.includes('?') ? '&' : '?';
       const posted = await fetchJSON(state.config.liveProxy + sep + 'action=data', null);
-      if (posted) {
-        manualUpdates = manualUpdates.concat(Array.isArray(posted.updates) ? posted.updates : []);
-        dashboardMarkers = Array.isArray(posted.markers) ? posted.markers : [];
+      if (posted && Array.isArray(posted.posts)) {
+        state.posts = state.posts.concat(posted.posts.map((p) => Object.assign({}, p, { text: String(p.text || '') })));
       }
     }
 

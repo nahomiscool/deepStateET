@@ -27,7 +27,7 @@
   <main id="login-view" class="login-view">
     <form id="login-form" class="card login-card">
       <h1>Dashboard</h1>
-      <p class="muted">Post written updates and add event markers to the map.</p>
+      <p class="muted">Publish news and events to the map.</p>
       <label class="field">
         <span>Password</span>
         <input id="password" type="password" autocomplete="current-password" required>
@@ -45,82 +45,48 @@
   <!-- Dashboard -->
   <main id="dash-view" class="dash" hidden>
     <section class="dash-panel">
-      <nav class="tabs" role="tablist">
-        <button role="tab" data-tab="update" aria-selected="true">Post update</button>
-        <button role="tab" data-tab="marker" aria-selected="false">Add marker</button>
-        <button role="tab" data-tab="manage" aria-selected="false">Manage</button>
-      </nav>
+      <form id="post-form" class="post-form">
+        <h1 class="form-title">New post</h1>
 
-      <!-- Post update -->
-      <form id="update-form" class="tab-body" data-panel="update">
+        <fieldset class="field">
+          <legend>What kind of post?</legend>
+          <div id="type-grid" class="type-grid" role="radiogroup"></div>
+        </fieldset>
+
         <label class="field">
-          <span>Update</span>
-          <textarea id="u-text" rows="5" maxlength="1000" required placeholder="e.g. Fighting reported near Lalibela; the road to Woldia is closed."></textarea>
-          <small class="muted"><span id="u-count">0</span>/1000</small>
+          <span>What happened?</span>
+          <textarea id="p-text" rows="4" maxlength="1500" required placeholder="e.g. TPLF has taken control of the main airport in Mekele."></textarea>
         </label>
-        <label class="field">
-          <span>Date and time</span>
-          <input id="u-date" type="datetime-local" required>
-        </label>
+
         <div class="field">
-          <span>Location <span class="muted">(optional: adds a "Show on map" link)</span></span>
+          <span>Where? <span class="muted" id="loc-note">(optional for news: click the map)</span></span>
           <div class="loc-row">
-            <input id="u-loc" type="text" placeholder="Click the map, or type lat, lng" autocomplete="off">
-            <button type="button" class="btn ghost" data-clear="u-loc">Clear</button>
+            <input id="p-loc" type="text" placeholder="Click the map, or type lat, lng" autocomplete="off">
+            <button type="button" class="btn ghost" id="clear-loc">Clear</button>
           </div>
         </div>
-        <label class="field narrow">
-          <span>Zoom level for "Show on map"</span>
-          <input id="u-zoom" type="number" min="5" max="15" value="10">
-        </label>
-        <button class="btn primary" type="submit">Post update</button>
-      </form>
 
-      <!-- Add marker -->
-      <form id="marker-form" class="tab-body" data-panel="marker" hidden>
-        <label class="field">
-          <span>Title</span>
-          <input id="m-title" type="text" maxlength="200" required placeholder="e.g. Clashes in Debre Tabor">
-        </label>
         <div class="field-row">
           <label class="field">
-            <span>Type</span>
-            <select id="m-type"></select>
+            <span>When?</span>
+            <input id="p-date" type="datetime-local" required>
           </label>
           <label class="field">
-            <span>Date</span>
-            <input id="m-date" type="date" required>
+            <span>Source link <span class="muted">(optional)</span></span>
+            <input id="p-source" type="url" maxlength="500" placeholder="https://…">
           </label>
         </div>
-        <div class="field">
-          <span>Location</span>
-          <div class="loc-row">
-            <input id="m-loc" type="text" required placeholder="Click the map, or type lat, lng" autocomplete="off">
-            <button type="button" class="btn ghost" data-clear="m-loc">Clear</button>
-          </div>
-        </div>
-        <label class="field">
-          <span>Description <span class="muted">(optional)</span></span>
-          <textarea id="m-desc" rows="3" maxlength="2000"></textarea>
-        </label>
-        <label class="field">
-          <span>Source link <span class="muted">(optional)</span></span>
-          <input id="m-source" type="url" maxlength="500" placeholder="https://…">
-        </label>
-        <button class="btn primary" type="submit">Add marker</button>
+
+        <button class="btn primary big" type="submit">Publish</button>
       </form>
 
-      <!-- Manage -->
-      <div class="tab-body" data-panel="manage" hidden>
-        <div class="manage-head">
-          <h2>Updates</h2>
+      <section class="posts">
+        <div class="posts-head">
+          <h2>Your posts</h2>
           <button type="button" class="btn ghost small" id="refresh">Refresh</button>
         </div>
-        <ul id="list-updates" class="manage-list"></ul>
-        <h2>Markers</h2>
-        <ul id="list-markers" class="manage-list"></ul>
-        <p class="muted small">Saved in your Google Apps Script. There's room for several hundred updates and markers; delete old ones if it fills up.</p>
-      </div>
+        <ul id="post-list" class="post-list"></ul>
+      </section>
     </section>
 
     <section class="dash-map">
@@ -129,7 +95,7 @@
         <ul id="town-results" class="search-results" hidden></ul>
       </div>
       <div id="admin-map" aria-label="Map for choosing a location"></div>
-      <p class="map-hint" id="map-hint">Click the map to set the location</p>
+      <p class="map-hint">Click the map to set where it happened</p>
     </section>
   </main>
 

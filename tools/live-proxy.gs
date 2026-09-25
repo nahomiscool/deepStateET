@@ -3,9 +3,9 @@
  *
  * 1. Serves the current layers of your Google My Map to the website, so the map
  *    works without the GitHub sync workflow. Only the map below is served.
- * 2. Stores the written updates and event markers you add in the dashboard
- *    (admin.html). They're kept in the script's own storage, which needs no
- *    extra Google permissions.
+ * 2. Stores the posts you publish from the dashboard (admin.html): news updates
+ *    and events such as clashes or airstrikes. They're kept in the script's own
+ *    storage, which needs no extra Google permissions.
  *
  * First-time setup:
  *  1. Go to https://script.google.com and click "New project".
@@ -25,9 +25,10 @@ const MAP_ID = '1XPJWGQgVK216o5nXwIpydH-y5ebbj24';
 const ADMIN_PASSWORD = 'change-me'; // ← choose your own password (at least 8 characters)
 const CACHE_SECONDS = 300;          // Google is asked for each map layer at most once every 5 minutes
 
-// Updates and markers are stored as script properties: "u:<id>" and "m:<id>" → JSON.
-const LISTS = { Updates: 'u:', Markers: 'm:' };
+// Posts are stored as script properties: "p:<id>" → JSON.
+const PREFIX = 'p:';
 const MAX_STORAGE = 480000; // Apps Script allows about 500 KB of properties in total
+const TYPES = ['update', 'clash', 'airstrike', 'drone', 'shelling', 'captured', 'displacement', 'protest', 'other'];
 
 // ---------- web app entry points ----------
 
@@ -54,9 +55,8 @@ function doPost(e) {
   try {
     switch (req.action) {
       case 'check': return json_({ ok: true });
-      case 'addUpdate': return json_(addUpdate_(req.item || {}));
-      case 'addMarker': return json_(addMarker_(req.item || {}));
-      case 'delete': return json_(deleteRow_(req.sheet, req.id));
+      case 'addPost': return json_(addPost_(req.item || {}));
+      case 'deletePost': return json_(deletePost_(req.id));
       default: return json_({ ok: false, error: 'Unknown action' });
     }
   } catch (err) {
@@ -87,41 +87,21 @@ function checkPassword_(password) {
   return null;
 }
 
-// ---------- updates and markers ----------
+// ---------- posts ----------
 
 function store_() {
   return PropertiesService.getScriptProperties();
 }
 
-function items_(prefix) {
-  const all = store_().getProperties();
-  const out = [];
-  for (const key of Object.keys(all)) {
-    if (key.indexOf(prefix) !== 0) continue;
-    try { out.push(JSON.parse(all[key])); } catch (err) { /* skip damaged entries */ }
-  }
-  return out;
-}
-
-function save_(prefix, item) {
-  const value = JSON.stringify(item);
-  const all = store_().getProperties();
-  const used = Object.keys(all).reduce((sum, k) => sum + k.length + all[k].length, 0);
-  if (used + value.length > MAX_STORAGE) {
-    throw new Error('Storage is full. Delete some old updates or markers in the Manage tab first.');
-  }
-  store_().setProperty(prefix + item.id, value);
-}
-
 function readData_() {
-  return {
-    updates: items_(LISTS.Updates).map((r) => ({
-      id: r.id, date: r.date, text: r.text,
-      location: r.lat !== '' && r.lng !== '' ? [r.lat, r.lng] : undefined,
-      zoom: r.zoom || undefined
-    })),
-    markers: items_(LISTS.Markers)
-  };
+  const all = store_().getProperties();
+  const posts = [];
+  for (const key of Object.keys(all)) {
+    if (key.indexOf(PREFIX) !== 0) continue;
+    try { posts.push(JSON.parse(all[key])); } catch (err) { /* skip damaged entries */ }
+  }
+  posts.sort((a, b) => (a.date < b.date ? 1 : -1));
+  return { posts };
 }
 
 function clean_(value, max) {
@@ -141,37 +121,26 @@ function date_(value) {
   return Utilities.formatDate(d, 'Etc/UTC', "yyyy-MM-dd'T'HH:mm'Z'");
 }
 
-function addUpdate_(item) {
-  const text = clean_(item.text, 1000);
-  if (!text) throw new Error('The update text is empty');
+function addPost_(item) {
+  const text = clean_(item.text, 1500);
+  if (!text) throw new Error('Write what happened first');
+  const type = TYPES.indexOf(item.type) >= 0 ? item.type : 'update';
   const lat = coordinate_(item.lat, -5, 25);
   const lng = coordinate_(item.lng, 20, 60);
-  const zoom = item.zoom ? Math.max(4, Math.min(16, Math.round(Number(item.zoom)) || 10)) : '';
-  const id = Utilities.getUuid();
-  save_(LISTS.Updates, { id, date: date_(item.date), text, lat, lng, zoom: lat === '' ? '' : zoom });
-  return { ok: true, id };
-}
-
-function addMarker_(item) {
-  const title = clean_(item.title, 200);
-  if (!title) throw new Error('The marker needs a title');
-  const lat = coordinate_(item.lat, -5, 25);
-  const lng = coordinate_(item.lng, 20, 60);
-  if (lat === '' || lng === '') throw new Error('The marker needs a location');
+  if (type !== 'update' && lat === '') throw new Error('Events need a location: click the map');
   const source = clean_(item.source, 500);
   if (source && !/^https?:\/\//i.test(source)) throw new Error('The source must be a link starting with http:// or https://');
-  const id = Utilities.getUuid();
-  save_(LISTS.Markers, {
-    id, date: date_(item.date), title, type: clean_(item.type, 40) || 'Other',
-    description: clean_(item.description, 2000), source, lat, lng
-  });
-  return { ok: true, id };
+  const post = { id: Utilities.getUuid(), date: date_(item.date), type, text, lat, lng, source };
+  const value = JSON.stringify(post);
+  const all = store_().getProperties();
+  const used = Object.keys(all).reduce((sum, k) => sum + k.length + all[k].length, 0);
+  if (used + value.length > MAX_STORAGE) throw new Error('Storage is full. Delete some old posts first.');
+  store_().setProperty(PREFIX + post.id, value);
+  return { ok: true, id: post.id };
 }
 
-function deleteRow_(list, id) {
-  const prefix = LISTS[list];
-  if (!prefix) throw new Error('Unknown list');
-  const key = prefix + String(id);
+function deletePost_(id) {
+  const key = PREFIX + String(id);
   if (store_().getProperty(key) === null) throw new Error('Not found (it may already be deleted)');
   store_().deleteProperty(key);
   return { ok: true };

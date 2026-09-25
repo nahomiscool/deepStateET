@@ -4,10 +4,11 @@ name: Sync map
 # GitHub Pages ("Deploy from a branch") then publishes the updated site.
 # Uses only shell commands, so it works even when third-party actions are disabled.
 
+# Manual only for now: GitHub Actions can't start jobs on this account, and the site
+# gets its live data from the Google Apps Script instead. Once Actions works, add back:
+#   schedule:
+#     - cron: '*/30 * * * *'   # daily history, change map, RSS and Telegram
 on:
-  push:
-  schedule:
-    - cron: '*/30 * * * *'   # pull the latest Google My Maps data every 30 minutes
   workflow_dispatch:
 
 permissions:

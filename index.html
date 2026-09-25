@@ -68,11 +68,25 @@
       </section>
 
       <section class="panel-section data-only" id="overview-section" hidden>
-        <h2 class="section-title" data-i18n="overview">Control overview</h2>
+        <h2 class="section-title" data-i18n="overview">Who controls what</h2>
         <ul id="overview" class="overview"></ul>
       </section>
 
-      <section class="panel-section data-only" id="changes-section">
+      <section class="panel-section grow" id="news-section">
+        <h2 class="section-title">
+          <span data-i18n="updates">Latest news</span>
+          <a href="feed.xml" class="rss-link" data-i18n="rss">RSS</a>
+        </h2>
+        <div id="events-filter" class="segments" role="group" aria-label="Time period">
+          <button data-days="0" class="active" data-i18n="allTime">All</button>
+          <button data-days="7" data-i18n="last7">7 days</button>
+          <button data-days="30" data-i18n="last30">30 days</button>
+        </div>
+        <ul id="icon-key" class="icon-key" hidden></ul>
+        <ol id="updates" class="updates"></ol>
+      </section>
+
+      <section class="panel-section data-only" id="changes-section" hidden>
         <h2 class="section-title">
           <span data-i18n="changesSince">Changes since</span>
           <select id="compare-select" class="compact-select" aria-label="Compare with"></select>
@@ -84,40 +98,24 @@
         <ul id="changes" class="changes"></ul>
       </section>
 
-      <section class="panel-section">
-        <h2 class="section-title" data-i18n="layers">Layers</h2>
+      <details class="panel-section settings">
+        <summary data-i18n="mapSettings">Map settings</summary>
         <p id="embed-info" class="muted small" data-i18n="embedInfo" hidden></p>
+        <h3 class="sub-title data-only" data-i18n="layers">Layers</h3>
         <ul id="layer-list" class="layer-list data-only"></ul>
-        <div id="events-filter" class="segmented data-only" hidden>
-          <span class="muted small" data-i18n="events">Events</span>
-          <div class="segments">
-            <button data-days="0" class="active" data-i18n="allTime">All</button>
-            <button data-days="30" data-i18n="last30">Last 30 days</button>
-            <button data-days="7" data-i18n="last7">Last 7 days</button>
-          </div>
+        <h3 class="sub-title data-only" data-i18n="referenceLayers">Reference</h3>
+        <div class="data-only">
+          <label class="toggle-row"><input type="checkbox" data-ref="regions" checked><span data-i18n="regions">Regions</span></label>
+          <label class="toggle-row"><input type="checkbox" data-ref="zones"><span data-i18n="adminZones">Administrative zones</span></label>
+          <label class="toggle-row"><input type="checkbox" data-ref="woredas"><span data-i18n="woredas">Woredas (zoom in)</span></label>
+          <label class="toggle-row"><input type="checkbox" data-ref="roads"><span data-i18n="roads">Main roads</span></label>
+          <label class="toggle-row"><input type="checkbox" data-ref="towns" checked><span data-i18n="towns">Towns and cities</span></label>
         </div>
-      </section>
-
-      <section class="panel-section data-only">
-        <h2 class="section-title" data-i18n="referenceLayers">Reference layers</h2>
-        <label class="toggle-row"><input type="checkbox" data-ref="regions" checked><span data-i18n="regions">Regions</span></label>
-        <label class="toggle-row"><input type="checkbox" data-ref="zones"><span data-i18n="adminZones">Administrative zones</span></label>
-        <label class="toggle-row"><input type="checkbox" data-ref="woredas"><span data-i18n="woredas">Woredas (zoom in)</span></label>
-        <label class="toggle-row"><input type="checkbox" data-ref="roads"><span data-i18n="roads">Main roads</span></label>
-        <label class="toggle-row"><input type="checkbox" data-ref="towns" checked><span data-i18n="towns">Towns and cities</span></label>
-        <label class="select-row">
+        <label class="select-row data-only">
           <span data-i18n="basemap">Basemap</span>
           <select id="basemap-select" aria-label="Basemap"></select>
         </label>
-      </section>
-
-      <section class="panel-section grow">
-        <h2 class="section-title">
-          <span data-i18n="updates">Updates</span>
-          <a href="feed.xml" class="rss-link" data-i18n="rss">RSS feed</a>
-        </h2>
-        <ol id="updates" class="updates"></ol>
-      </section>
+      </details>
 
       <footer class="panel-footer">
         <a id="report-link" href="#" target="_blank" rel="noopener" data-i18n="reportCorrection">Report a correction</a>

@@ -1,9 +1,9 @@
-/* Dashboard: posts updates and event markers through the Google Apps Script
-   (config.liveProxy), which stores them in a Google Sheet. */
+/* Dashboard: publishes posts (news and events) through the Google Apps Script
+   (config.liveProxy), which stores them for the map. */
 (function () {
   'use strict';
 
-  const state = { proxy: '', password: '', data: { updates: [], markers: [] }, pickFor: 'u-loc' };
+  const state = { proxy: '', password: '', posts: [], type: 'update' };
   const $ = (id) => document.getElementById(id);
 
   function el(tag, attrs, children) {
@@ -11,6 +11,7 @@
     for (const [k, v] of Object.entries(attrs || {})) {
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = v;
+      else if (k === 'html') node.innerHTML = v;
       else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
       else if (v !== undefined && v !== null) node.setAttribute(k, v);
     }
@@ -24,12 +25,15 @@
     node.classList.toggle('error', !!isError);
     node.hidden = false;
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => { node.hidden = true; }, isError ? 5000 : 2600);
+    toast.timer = setTimeout(() => { node.hidden = true; }, isError ? 6000 : 2600);
   }
 
   const store = {
     get() {
       try { return sessionStorage.getItem('dash-pw') || localStorage.getItem('dash-pw') || ''; } catch (e) { return ''; }
+    },
+    remembered() {
+      try { return !!localStorage.getItem('dash-pw'); } catch (e) { return false; }
     },
     set(pw, remember) {
       try {
@@ -53,17 +57,20 @@
     });
     let body;
     try { body = await res.json(); } catch (e) { throw new Error('The Google script sent an unexpected reply. Is the latest version deployed?'); }
-    if (!body.ok) throw new Error(body.error || 'Request failed');
+    if (!body.ok) {
+      const msg = body.error || 'Request failed';
+      if (/Unknown action/i.test(msg)) throw new Error('Your Google script is an older version. Paste the latest tools/live-proxy.gs and deploy a new version.');
+      throw new Error(msg);
+    }
     return body;
   }
 
-  async function loadData() {
+  async function loadPosts() {
     const sep = state.proxy.includes('?') ? '&' : '?';
     const res = await fetch(state.proxy + sep + 'action=data&t=' + Date.now());
     const body = await res.json();
-    state.data = { updates: body.updates || [], markers: body.markers || [] };
-    renderLists();
-    renderExisting();
+    state.posts = Array.isArray(body.posts) ? body.posts : [];
+    renderPosts();
   }
 
   // ---------- login ----------
@@ -76,7 +83,7 @@
     $('dash-view').hidden = false;
     $('logout').hidden = false;
     setTimeout(() => map.invalidateSize(), 50);
-    await loadData().catch(() => toast('Could not load existing updates and markers.', true));
+    await loadPosts().catch(() => toast('Could not load your posts.', true));
   }
 
   function setupLogin() {
@@ -100,18 +107,6 @@
     });
   }
 
-  // ---------- tabs ----------
-
-  function setupTabs() {
-    document.querySelectorAll('[role=tab]').forEach((tab) => tab.addEventListener('click', () => {
-      document.querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-      document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
-      state.pickFor = tab.dataset.tab === 'marker' ? 'm-loc' : 'u-loc';
-      $('map-hint').hidden = tab.dataset.tab === 'manage';
-      syncPin();
-    }));
-  }
-
   // ---------- map for picking locations ----------
 
   const map = L.map('admin-map', { minZoom: 4, maxBounds: [[-5, 20], [25, 60]] }).setView([9.1, 40.5], 6);
@@ -119,11 +114,12 @@
     subdomains: '0123', maxZoom: 20, attribution: 'Map data &copy; Google'
   }).addTo(map);
   map.attributionControl.setPrefix(false);
-  const existingLayer = L.layerGroup().addTo(map);
-  const pin = L.marker([0, 0], {
-    draggable: true,
-    icon: L.divIcon({ className: '', html: '<div class="pick-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
-  });
+  const postsLayer = L.layerGroup().addTo(map);
+  const pin = L.marker([0, 0], { draggable: true, zIndexOffset: 1000 });
+
+  function pinIcon() {
+    return L.divIcon({ className: 'event-icon picking', html: eventIconHtml(eventType(state.type), 36), iconSize: [36, 36], iconAnchor: [18, 18] });
+  }
 
   function parseLoc(value) {
     const m = String(value).match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
@@ -134,30 +130,26 @@
   }
 
   function setLoc(latlng) {
-    $(state.pickFor).value = latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5);
+    $('p-loc').value = latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5);
     syncPin();
   }
 
   function syncPin() {
-    const loc = parseLoc($(state.pickFor).value);
-    if (loc) pin.setLatLng(loc).addTo(map);
+    const loc = parseLoc($('p-loc').value);
+    if (loc) pin.setLatLng(loc).setIcon(pinIcon()).addTo(map);
     else map.removeLayer(pin);
   }
 
   function setupMap() {
     map.on('click', (e) => setLoc(e.latlng));
     pin.on('dragend', () => setLoc(pin.getLatLng()));
-    ['u-loc', 'm-loc'].forEach((id) => $(id).addEventListener('input', syncPin));
-    document.querySelectorAll('[data-clear]').forEach((b) => b.addEventListener('click', () => {
-      $(b.dataset.clear).value = '';
-      syncPin();
-    }));
+    $('p-loc').addEventListener('input', syncPin);
+    $('clear-loc').addEventListener('click', () => { $('p-loc').value = ''; syncPin(); });
 
     fetch('data/regions.geojson').then((r) => r.json()).then((data) => {
       L.geoJSON(data, { interactive: false, style: { color: '#4a5261', weight: 1.2, dashArray: '5 4', fill: false } }).addTo(map);
     }).catch(() => {});
 
-    // Town search to jump around the map quickly.
     let towns = [];
     fetch('data/towns.geojson').then((r) => r.json()).then((data) => {
       towns = data.features.map((f) => ({ name: f.properties.name, lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] }));
@@ -183,17 +175,7 @@
     input.addEventListener('blur', () => { results.hidden = true; });
   }
 
-  function renderExisting() {
-    existingLayer.clearLayers();
-    state.data.markers.forEach((m) => {
-      if (!isFinite(m.lat) || !isFinite(m.lng)) return;
-      L.circleMarker([m.lat, m.lng], {
-        radius: 6, color: '#0f1115', weight: 1.5, fillColor: eventColor(m.type), fillOpacity: 0.9, bubblingMouseEvents: false
-      }).bindTooltip(m.title).addTo(existingLayer);
-    });
-  }
-
-  // ---------- forms ----------
+  // ---------- the post form ----------
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function nowLocal() {
@@ -201,130 +183,109 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
 
-  async function submit(form, work) {
-    const btn = form.querySelector('button[type=submit]');
-    btn.disabled = true;
-    try {
-      await work();
-      await loadData().catch(() => {});
-    } catch (err) {
-      toast(err.message, true);
-    } finally {
-      btn.disabled = false;
-    }
+  function selectType(id) {
+    state.type = id;
+    document.querySelectorAll('#type-grid button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.type === id)));
+    $('loc-note').textContent = id === 'update' ? '(optional for news: click the map)' : '(required: click the map)';
+    syncPin();
   }
 
-  function setupForms() {
-    const select = $('m-type');
-    EVENT_TYPES.forEach((t) => select.append(el('option', { value: t.id, text: t.id })));
-    $('u-date').value = nowLocal();
-    $('m-date').value = nowLocal().slice(0, 10);
-    $('u-text').addEventListener('input', () => { $('u-count').textContent = $('u-text').value.length; });
+  function setupForm() {
+    const grid = $('type-grid');
+    EVENT_TYPES.forEach((t) => grid.append(el('button', {
+      type: 'button', role: 'radio', 'data-type': t.id, 'aria-checked': 'false', title: t.label,
+      onclick: () => selectType(t.id)
+    }, [el('span', { html: eventIconHtml(t, 30) }), el('span', { class: 'type-label', text: t.id === 'captured' ? 'Captured' : t.label })])));
+    selectType('update');
+    $('p-date').value = nowLocal();
 
-    $('update-form').addEventListener('submit', (e) => {
+    // Suggest a type from the words typed, until one is picked by hand.
+    let picked = false;
+    grid.addEventListener('click', () => { picked = true; });
+    $('p-text').addEventListener('input', () => {
+      if (picked) return;
+      const guess = guessEventType({ name: $('p-text').value });
+      selectType(guess ? guess.id : 'update');
+    });
+
+    $('post-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      submit(e.target, async () => {
-        const loc = parseLoc($('u-loc').value);
-        if ($('u-loc').value.trim() && !loc) throw new Error('The location should look like "11.6, 37.4" and be inside the map area.');
-        await call('addUpdate', { item: {
-          text: $('u-text').value,
-          date: new Date($('u-date').value).toISOString(),
+      const btn = e.target.querySelector('button[type=submit]');
+      const loc = parseLoc($('p-loc').value);
+      if ($('p-loc').value.trim() && !loc) return toast('The location should look like "13.49, 39.47" and be inside the map area.', true);
+      if (state.type !== 'update' && !loc) return toast('Click the map to show where it happened.', true);
+      btn.disabled = true;
+      try {
+        await call('addPost', { item: {
+          type: state.type,
+          text: $('p-text').value,
+          date: new Date($('p-date').value).toISOString(),
           lat: loc ? loc.lat : '', lng: loc ? loc.lng : '',
-          zoom: $('u-zoom').value
+          source: $('p-source').value
         } });
         e.target.reset();
-        $('u-date').value = nowLocal();
-        $('u-zoom').value = 10;
-        $('u-count').textContent = '0';
+        picked = false;
+        selectType('update');
+        $('p-date').value = nowLocal();
         syncPin();
-        toast('Update posted. It shows on the site the next time the page loads.');
-      });
-    });
-
-    $('marker-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      submit(e.target, async () => {
-        const loc = parseLoc($('m-loc').value);
-        if (!loc) throw new Error('Choose a location: click the map, or type it like "11.6, 37.4".');
-        await call('addMarker', { item: {
-          title: $('m-title').value,
-          type: $('m-type').value,
-          date: $('m-date').value,
-          lat: loc.lat, lng: loc.lng,
-          description: $('m-desc').value,
-          source: $('m-source').value
-        } });
-        const type = $('m-type').value;
-        e.target.reset();
-        $('m-type').value = type;
-        $('m-date').value = nowLocal().slice(0, 10);
-        syncPin();
-        toast('Marker added. It shows on the site the next time the page loads.');
-      });
-    });
-
-    $('refresh').addEventListener('click', () => loadData().then(() => toast('Refreshed.')).catch((err) => toast(err.message, true)));
-  }
-
-  // ---------- manage ----------
-
-  function formatDate(value, withTime) {
-    const d = new Date(value);
-    if (isNaN(d)) return String(value);
-    const opts = { year: 'numeric', month: 'short', day: 'numeric' };
-    if (withTime) Object.assign(opts, { hour: '2-digit', minute: '2-digit' });
-    return d.toLocaleString(undefined, opts);
-  }
-
-  function deleteButton(sheet, item, label) {
-    return el('button', {
-      class: 'btn danger', type: 'button', text: 'Delete',
-      onclick: async (e) => {
-        if (!confirm('Delete "' + label + '"? This cannot be undone.')) return;
-        e.target.disabled = true;
-        try {
-          await call('delete', { sheet, id: item.id });
-          toast('Deleted.');
-          await loadData();
-        } catch (err) {
-          toast(err.message, true);
-          e.target.disabled = false;
-        }
+        toast('Published. It shows on the site the next time the page loads.');
+        await loadPosts().catch(() => {});
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        btn.disabled = false;
       }
     });
+
+    $('refresh').addEventListener('click', () => loadPosts().then(() => toast('Refreshed.')).catch((err) => toast(err.message, true)));
   }
 
-  function renderLists() {
-    const updates = $('list-updates');
-    const markers = $('list-markers');
-    updates.textContent = '';
-    markers.textContent = '';
-    const byDate = (a, b) => (a.date < b.date ? 1 : -1);
-    const u = state.data.updates.slice().sort(byDate);
-    const m = state.data.markers.slice().sort(byDate);
-    if (!u.length) updates.append(el('li', { class: 'empty', text: 'No updates yet.' }));
-    if (!m.length) markers.append(el('li', { class: 'empty', text: 'No markers yet.' }));
-    u.forEach((item) => updates.append(el('li', {}, [
-      el('div', { class: 'body' }, [
-        el('div', { class: 'meta', text: formatDate(item.date, true) + (item.location ? ' · has location' : '') }),
-        el('p', { text: item.text })
-      ]),
-      deleteButton('Updates', item, item.text.slice(0, 60))
-    ])));
-    m.forEach((item) => {
-      const dot = el('span', { class: 'swatch point' });
-      dot.style.background = eventColor(item.type);
-      markers.append(el('li', {}, [
+  // ---------- your posts ----------
+
+  function formatDate(value) {
+    const d = new Date(value);
+    if (isNaN(d)) return String(value);
+    return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderPosts() {
+    const list = $('post-list');
+    list.textContent = '';
+    postsLayer.clearLayers();
+    if (!state.posts.length) {
+      list.append(el('li', { class: 'empty', text: 'Nothing published yet.' }));
+      return;
+    }
+    state.posts.forEach((post) => {
+      const type = eventType(post.type) || eventType('update');
+      const hasLoc = post.lat !== '' && post.lng !== '' && isFinite(post.lat) && isFinite(post.lng);
+      if (hasLoc) {
+        L.marker([post.lat, post.lng], {
+          icon: L.divIcon({ className: 'event-icon', html: eventIconHtml(type, 26), iconSize: [26, 26], iconAnchor: [13, 13] })
+        }).bindTooltip(post.text.slice(0, 80)).addTo(postsLayer);
+      }
+      list.append(el('li', {}, [
+        el('span', { class: 'post-icon', html: eventIconHtml(type, 28) }),
         el('div', { class: 'body' }, [
-          el('div', { class: 'meta' }, [dot, item.type + ' · ' + formatDate(item.date)]),
-          el('p', {
-            text: item.title,
-            style: 'cursor:pointer',
-            title: 'Show on the map',
-            onclick: () => map.setView([item.lat, item.lng], 11)
-          })
+          el('div', { class: 'meta', text: type.label + ' · ' + formatDate(post.date) }),
+          el('p', { text: post.text }),
+          hasLoc ? el('button', { type: 'button', class: 'link-btn small', text: 'Show on map', onclick: () => map.setView([post.lat, post.lng], 11) }) : null
         ]),
-        deleteButton('Markers', item, item.title)
+        el('button', {
+          class: 'btn danger', type: 'button', text: 'Delete',
+          onclick: async (e) => {
+            if (!confirm('Delete this post? This cannot be undone.\n\n' + post.text.slice(0, 120))) return;
+            e.target.disabled = true;
+            try {
+              await call('deletePost', { id: post.id });
+              toast('Deleted.');
+              await loadPosts();
+            } catch (err) {
+              toast(err.message, true);
+              e.target.disabled = false;
+            }
+          }
+        })
       ]));
     });
   }
@@ -333,21 +294,20 @@
 
   async function init() {
     setupLogin();
-    setupTabs();
     setupMap();
-    setupForms();
+    setupForm();
     let config = {};
     try { config = await (await fetch('data/config.json', { cache: 'no-cache' })).json(); } catch (e) { /* handled below */ }
     state.proxy = config.liveProxy || '';
     if (!state.proxy) {
-      $('setup-hint').textContent = 'The dashboard needs the Google Apps Script set up first (see "Live data" in the README), with its URL in data/config.json as "liveProxy".';
+      $('setup-hint').textContent = 'The dashboard needs the Google Apps Script set up first, with its URL in data/config.json as "liveProxy".';
       $('setup-hint').hidden = false;
       $('login-form').querySelector('button[type=submit]').disabled = true;
       return;
     }
     const saved = store.get();
     if (saved) {
-      try { await login(saved, !!localStorage.getItem('dash-pw')); } catch (e) { store.clear(); }
+      try { await login(saved, store.remembered()); } catch (e) { store.clear(); }
     }
   }
 

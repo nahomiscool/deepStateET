@@ -1,144 +1,74 @@
 # DeepState ET
 
-A [DeepState](https://deepstatemap.live)-style situation map for Ethiopia. It shows layers from a
-Google My Maps map ([source](https://www.google.com/maps/d/viewer?mid=1XPJWGQgVK216o5nXwIpydH-y5ebbj24))
-on top of Google Maps, with layer toggles, a colour legend, search, dated snapshots and an updates feed.
-You can switch the background between Google Maps, Satellite, Terrain and a dark map.
+A [DeepState](https://deepstatemap.live)-style situation map of Ethiopia:
+**https://nahomiscool.github.io/deepStateET/**
 
-It is a static site with no build step. The libraries (Leaflet, togeojson, JSZip) are copied into `vendor/`.
+## How it works
 
-## Features
+There are only two places where you change anything:
 
-- **Change map.** Zones that changed hands since an earlier date are outlined and listed. You can compare with the previous snapshot, 7 days ago or 30 days ago. Click a change to fly to it.
-- **Timeline.** Drag the slider or press play to watch control shift day by day. A link to a past date opens that date.
-- **Control overview.** Zones, area in km² and share of territory for each controlling group, with the change against the comparison date.
-- **Sources in popups.** Every data column of a zone or marker shows in its popup, and link values become "Source: site.com" links.
-- **Events.** Markers with a `Date` column (or a KML timestamp) can be filtered to the last 7 or 30 days.
-- **Three languages.** English, Amharic and Afaan Oromo, with a language menu in the top bar and a `?lang=am` / `?lang=om` link option.
-- **Sharing.** Copy link, Telegram, WhatsApp, X and Facebook, plus a preview image for link cards (`img/og-image.png`).
-- **Installs as an app.** Phones can add it to the home screen, and it shows the last loaded map offline. On phones the panel is a bottom drawer.
-- **Reference layers.** Regions, administrative zones, woredas (shown from zoom 8), main roads and towns.
-- **Updates feed, RSS and Telegram.** Manual updates plus automatic entries whenever a zone changes, published as `feed.xml` and optionally posted to Telegram.
-- **Corrections.** "Report a correction" (or right-click / long-press the map) opens a GitHub issue form with the location filled in.
-- **Fallback.** Until the first sync has run, the site shows the live Google My Maps view of the map.
-
-## How the data gets in
-
-You keep editing the map in **Google My Maps** as usual. The GitHub Action
-`.github/workflows/sync-and-deploy.yml` ("Sync map") runs every 30 minutes and does the rest:
-
-1. It downloads each layer listed under `layers` in `data/config.json` into `data/layers/<id>.kml`.
-2. If a zone changed hands, it records the change in `data/changes.json` (these become the automatic updates).
-3. If anything changed, it saves a daily snapshot in `data/history/<date>/`, rebuilds `feed.xml`, posts to Telegram if set up, and commits.
-4. GitHub Pages publishes the updated site.
-
-**Tip for the change map and statistics:** in My Maps, give your control layer a column such as `Controller`
-and use *Style by data column* on it. The site then uses the column values as labels ("Group A: 14 zones").
-Change detection matches zones by layer and name, so keep zone names stable.
-
-Each layer becomes a toggle in the sidebar. The site keeps the colours, line widths and
-fill opacity you set in My Maps. Popups show each place's description and its data columns.
-If you styled a layer by a data column (for example "Controller"), the sidebar lists each colour with its value.
-
-## Live data without GitHub Actions (Google Apps Script)
-
-If the GitHub workflow can't run, the site can load your layers straight from Google through a small
-script in your own Google account:
-
-1. Open https://script.google.com and click **New project**.
-2. Delete the sample code, paste the contents of [`tools/live-proxy.gs`](tools/live-proxy.gs), and click **Save**.
-3. Click **Deploy → New deployment**, click the gear icon and choose **Web app**.
-   Set *Execute as* to **Me** and *Who has access* to **Anyone**, then click **Deploy** and allow the permissions.
-4. Copy the **Web app URL** (it ends in `/exec`) into `"liveProxy"` in `data/config.json`.
-
-The map then shows your current layers, with switches, legend, search and statistics, and the date reads "Live".
-The script only serves your own map, and asks Google for it at most once every 5 minutes.
-The day-by-day history, change map, RSS and Telegram still come from the GitHub workflow.
-
-## Dashboard: posting updates and markers
-
-Open **`admin.html`** on your site (for example https://nahomiscool.github.io/deepStateET/admin.html) and log in
-with the password set in the Google Apps Script (`ADMIN_PASSWORD` in `tools/live-proxy.gs`).
-
-- **Post update:** a written update for the "Updates" list, with an optional location for the "Show on map" link.
-- **Add marker:** an event marker (clash, airstrike, drone strike, shelling, displacement, protest, other) with a date,
-  a description and a source link. Click the map or search for a town to set the location.
-- **Manage:** see and delete what you've posted.
-
-Everything is saved inside the Google Apps Script itself (its script properties, about 500 KB, enough for
-several hundred entries), so it needs no extra Google permissions, no GitHub editing and no GitHub Actions. New posts appear on the site the next time the page loads. Markers show as
-the "Events" layer and work with the 7/30-day filter.
-
-## Adding a layer
-
-1. In My Maps, open the layer's ⋮ menu and choose **Export to KML/KMZ**.
-2. Pick the layer, tick **Keep data up to date with network link KML (KML only)**, and download the file.
-3. Put it in `data/sources/` and run:
-
-   ```sh
-   node scripts/add-layer.mjs data/sources/<file>.kml
-   ```
-
-   This adds the layer's link to `layers` in `data/config.json`. You can also add an entry there by hand:
-   `{ "id": "short-id", "name": "Layer name", "url": "<the href from the file>" }`.
-
-The "Ethiopia Control Zones (by administrative zone)" layer is already added (`data/sources/control-zones.kml`).
-
-## Setup
-
-1. **Share the map publicly.** In My Maps, click *Share* and turn on *Anyone with this link can view*.
-   If you skip this, Google won't serve the KML file and the sync step fails.
-2. **Enable Pages.** In the repo, go to *Settings → Pages → Build and deployment*, choose **Deploy from a branch**,
-   and pick the repository's default branch with the `/ (root)` folder.
-3. **Check Actions.** In *Settings → Actions → General*, make sure Actions are allowed, and under *Workflow permissions*
-   choose **Read and write permissions**. The **Sync map** workflow runs every 30 minutes, on every push, or from the *Actions* tab (*Run workflow*).
-
-## Telegram (optional)
-
-1. Create a bot with [@BotFather](https://t.me/BotFather) and add it as an admin of your channel.
-2. In the repo, go to *Settings → Secrets and variables → Actions* and add `TELEGRAM_BOT_TOKEN`
-   and `TELEGRAM_CHAT_ID` (for example `@yourchannel`).
-
-The first run only records what already exists. After that, each sync posts new updates and zone changes.
-
-## Configuration: `data/config.json`
-
-| Key | Meaning |
+| What | Where |
 | --- | --- |
-| `title` | Name shown in the top bar and browser tab |
-| `siteUrl` | Public address of the site, used by the RSS feed and Telegram posts |
-| `repo` | `owner/name` of this repository, used for "Report a correction" |
-| `googleMyMapsId` | The My Maps `mid`. Used for the "Source map" link, and synced as one whole-map layer when `layers` is empty |
-| `layers` | Layers to sync and show: `{ "id", "name", "url" }` |
-| `liveProxy` | Optional Google Apps Script web app URL that serves the live layers (see above) |
-| `basemap` | Default background: `google-roadmap`, `google-hybrid`, `google-satellite`, `google-terrain` or `dark` |
-| `center`, `zoom` | Initial view (`[lat, lng]`) |
-| `legend` | Optional legend entries, e.g. `{ "color": "#c0392b", "label": "Controlled by X", "type": "polygon" }` (`type`: `polygon`, `line` or `point`) |
+| **Areas of control** (the coloured zones) | Your Google My Map: https://www.google.com/maps/d/edit?mid=1XPJWGQgVK216o5nXwIpydH-y5ebbj24 |
+| **News and events** (clashes, airstrikes, captures…) | The dashboard: https://nahomiscool.github.io/deepStateET/admin.html |
 
-## Updates feed: `data/updates.json`
+A small Google Apps Script in your Google account (`tools/live-proxy.gs`) passes both to the site.
+Changes show up the next time someone opens or refreshes the page (map zones within about 5 minutes).
 
-```json
-[
-  { "date": "2026-09-24T14:00", "text": "Short description of what changed.", "location": [11.6, 37.4], "zoom": 10 }
-]
-```
+## Posting news and events
 
-`location` and `zoom` are optional. When `location` is set, the entry gets a *Show on map* link.
+1. Open the dashboard and log in with your password.
+2. Pick what kind of post it is. Each type has its own icon on the map:
+   News, Clash, Airstrike, Drone strike, Shelling, Captured / control change, Displacement, Protest, Other.
+   The dashboard suggests a type from the words you type ("taken control" → Captured).
+3. Write what happened, click the map where it happened (or search for a town), and press **Publish**.
 
-## Run locally
+News posts don't need a location. Events do, so they can appear on the map. Everything appears in the
+"Latest news" list on the site, and anything with a location also appears on the map with its icon.
+To remove a post, click **Delete** under "Your posts".
 
-```sh
-node scripts/sync-map.mjs      # optional: fetch the latest map data
-python3 -m http.server 8000    # then open http://localhost:8000
-```
+## Changing the zones
 
-To preview a map without syncing it, drag a `.kml` or `.kmz` export onto the map.
+Edit the "Ethiopia Control Zones (by administrative zone)" layer in My Maps as usual.
+For the "Who controls what" summary, give each zone a `Controller` value in the layer's data table and use
+*Style by data column → Controller*. Keep zone names the same over time.
 
-## Credits
+Points you add in My Maps also get icons: add a `Type` column (e.g. `Clash`, `Airstrike`), or use a word
+like "drone" or "clash" in the name.
 
-Boundaries (regions, zones, woredas): [geoBoundaries](https://www.geoboundaries.org) (CC BY 4.0).
-Roads and towns: [Natural Earth](https://www.naturalearthdata.com) (public domain), plus a few towns added by hand.
-Basemaps: © Google, © OpenStreetMap contributors, © CARTO.
+## Updating the Google Apps Script
 
-The Amharic and Afaan Oromo text in `js/i18n.js` should be checked by a native speaker.
-If you change the social preview address, update the `og:` tags in `index.html`.
+Only needed when `tools/live-proxy.gs` changes:
+
+1. Open https://script.google.com and your project.
+2. Replace all the code with the new `tools/live-proxy.gs`, put your password back in `ADMIN_PASSWORD`, and **Save**.
+3. **Deploy → Manage deployments → ✏️ → Version: New version → Deploy.** The URL stays the same.
+
+The script only serves your own map and needs no extra permissions. It stores posts in its own storage
+(about 500 KB, several hundred posts).
+
+---
+
+## Advanced
+
+<details>
+<summary>Files, settings and optional extras</summary>
+
+- `index.html`, `js/app.js`, `css/style.css`: the public map. `js/events.js`: event types and icons
+  ([Lucide](https://lucide.dev), ISC licence). `js/i18n.js`: English, Amharic and Afaan Oromo text
+  (the Amharic and Oromo should be checked by a native speaker).
+- `admin.html`, `js/admin.js`, `css/admin.css`: the dashboard.
+- `data/config.json`: title, map id, `liveProxy` (the Apps Script URL), layers, start view, default basemap.
+- `data/updates.json`: optional posts kept in the repository, e.g.
+  `{ "date": "2026-09-25T10:00", "type": "clash", "text": "…", "location": [11.6, 37.4] }`.
+- `data/*.geojson`: regions, zones, woredas (geoBoundaries, CC BY 4.0), roads and towns (Natural Earth).
+- **History, change map, RSS and Telegram** come from the GitHub workflow `.github/workflows/sync-and-deploy.yml`,
+  which saves a copy of the map every day. It is set to run by hand only, because GitHub Actions can't start
+  jobs on this account at the moment. Once Actions works, add the `schedule` back (see the comment in the file).
+  Telegram needs the repository secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+- More My Maps layers: export a layer with "Keep data up to date with network link KML", then run
+  `node scripts/add-layer.mjs <file>.kml`.
+- Local preview: `python3 -m http.server 8000`, then open http://localhost:8000. Dropping a `.kml`/`.kmz`
+  file on the map previews it.
+
+</details>
