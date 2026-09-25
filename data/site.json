@@ -7,7 +7,7 @@
         40.5
     ],
     "zoom": 6,
-    "publishedAt": "2026-09-25T10:59:45Z",
+    "publishedAt": "2026-09-25T12:55:56Z",
     "factions": [
         {
             "id": 1,
@@ -18,6 +18,16 @@
             "id": 2,
             "name": "TPLF",
             "color": "#FF5252"
+        },
+        {
+            "id": 3,
+            "name": "FANO",
+            "color": "#c64600"
+        },
+        {
+            "id": 4,
+            "name": "OLA",
+            "color": "#613583"
         }
     ],
     "history": [],
@@ -29,7 +39,8 @@
             "lat": 13.4715,
             "lng": 39.529,
             "at": "2026-09-25T08:47:00Z",
-            "source": null
+            "source": null,
+            "media": []
         }
     ],
     "places": [
