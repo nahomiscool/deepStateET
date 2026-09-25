@@ -1,0 +1,93 @@
+/* Dashboard (admin.html). Builds on the tokens in style.css. */
+body.admin { overflow: auto; }
+.topbar-link { color: var(--muted); font-size: 13px; }
+.topbar-link:hover { color: var(--text); }
+
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+.login-view { min-height: calc(100% - var(--topbar-h)); display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.login-card { width: min(380px, 100%); display: flex; flex-direction: column; gap: 14px; }
+.login-card h1 { margin: 0; font-size: 22px; }
+.login-card p { margin: 0; }
+
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; min-width: 0; }
+.field > span { color: var(--text); }
+.field .muted { font-weight: 400; }
+.field.narrow { max-width: 220px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field input, .field textarea, .field select {
+  width: 100%; font: inherit; font-weight: 400; font-size: 14px;
+  padding: 9px 10px; border-radius: 8px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+}
+.field textarea { resize: vertical; line-height: 1.45; }
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--link); }
+.field small { font-weight: 400; align-self: flex-end; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.loc-row { display: flex; gap: 8px; }
+.loc-row input { flex: 1; font-variant-numeric: tabular-nums; }
+
+.btn {
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel-2); color: var(--text);
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.primary:disabled { opacity: .6; cursor: progress; }
+.btn.ghost { background: none; }
+.btn.small { padding: 5px 10px; font-size: 12px; }
+.btn.danger { color: var(--down); background: none; padding: 5px 10px; font-size: 12px; }
+.btn.danger:hover { border-color: var(--down); }
+.form-error { color: var(--down); font-size: 13px; margin: 0; }
+
+/* Dashboard layout: form on the left, map on the right */
+.dash { display: grid; grid-template-columns: minmax(340px, 440px) 1fr; height: calc(100% - var(--topbar-h)); }
+.dash-panel { border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
+.tabs { display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 2; }
+.tabs button {
+  flex: 1; padding: 13px 8px; background: none; border: none; color: var(--muted);
+  font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent;
+}
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tab-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.tab-body h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 8px 0 0; }
+.manage-head { display: flex; align-items: center; justify-content: space-between; }
+.manage-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.manage-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.manage-list li:last-child { border-bottom: none; }
+.manage-list .body { flex: 1; min-width: 0; }
+.manage-list .meta { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.manage-list p { margin: 3px 0 0; line-height: 1.4; overflow-wrap: anywhere; }
+.manage-list .empty { color: var(--muted); font-size: 13px; }
+.manage-list .swatch.point { margin: 0; }
+
+.dash-map { position: relative; min-height: 320px; }
+#admin-map { position: absolute; inset: 0; background: #0b0d10; }
+.map-search { position: absolute; top: 12px; left: 56px; right: 12px; max-width: 320px; z-index: 1000; }
+.map-search input {
+  width: 100%; padding: 9px 10px; font: inherit; border-radius: 8px;
+  background: rgba(22,25,32,.95); color: var(--text); border: 1px solid var(--border);
+}
+.map-hint {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 1000; margin: 0;
+  padding: 6px 12px; border-radius: 999px; font-size: 13px;
+  background: rgba(22,25,32,.92); border: 1px solid var(--border); pointer-events: none;
+}
+.pick-pin {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--highlight); border: 3px solid #111; box-shadow: 0 0 0 3px rgba(255,210,63,.35);
+}
+.admin-toast { position: fixed; bottom: 24px; z-index: 2000; }
+.admin-toast.error { background: var(--down); color: #fff; }
+
+@media (max-width: 800px) {
+  body.admin { overflow: auto; height: auto; }
+  .dash { display: flex; flex-direction: column-reverse; height: auto; }
+  .dash-map { height: 45vh; min-height: 280px; }
+  .dash-panel { border-right: none; overflow: visible; }
+  .field-row { grid-template-columns: 1fr; }
+}

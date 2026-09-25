@@ -55,6 +55,20 @@ The map then shows your current layers, with switches, legend, search and statis
 The script only serves your own map, and asks Google for it at most once every 5 minutes.
 The day-by-day history, change map, RSS and Telegram still come from the GitHub workflow.
 
+## Dashboard: posting updates and markers
+
+Open **`admin.html`** on your site (for example https://nahomiscool.github.io/deepStateET/admin.html) and log in
+with the password set in the Google Apps Script (`ADMIN_PASSWORD` in `tools/live-proxy.gs`).
+
+- **Post update:** a written update for the "Updates" list, with an optional location for the "Show on map" link.
+- **Add marker:** an event marker (clash, airstrike, drone strike, shelling, displacement, protest, other) with a date,
+  a description and a source link. Click the map or search for a town to set the location.
+- **Manage:** see and delete what you've posted.
+
+Everything is saved in a Google Sheet called "DeepState ET data" in your Google Drive, so it needs no GitHub
+editing and no GitHub Actions. New posts appear on the site the next time the page loads. Markers show as
+the "Events" layer and work with the 7/30-day filter.
+
 ## Adding a layer
 
 1. In My Maps, open the layer's ⋮ menu and choose **Export to KML/KMZ**.

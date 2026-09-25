@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>DeepState ET Dashboard</title>
+  <meta name="theme-color" content="#0f1115">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name">DeepState ET <span class="muted">· Dashboard</span></span>
+    </div>
+    <div class="topbar-meta">
+      <a href="./" target="_blank" rel="noopener" class="topbar-link">View site ↗</a>
+      <button id="logout" class="topbar-link link-btn" hidden>Log out</button>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <main id="login-view" class="login-view">
+    <form id="login-form" class="card login-card">
+      <h1>Dashboard</h1>
+      <p class="muted">Post written updates and add event markers to the map.</p>
+      <label class="field">
+        <span>Password</span>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="check">
+        <input id="remember" type="checkbox">
+        <span>Stay logged in on this device</span>
+      </label>
+      <button class="btn primary" type="submit">Log in</button>
+      <p id="login-error" class="form-error" role="alert" hidden></p>
+      <p id="setup-hint" class="muted small" hidden></p>
+    </form>
+  </main>
+
+  <!-- Dashboard -->
+  <main id="dash-view" class="dash" hidden>
+    <section class="dash-panel">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="update" aria-selected="true">Post update</button>
+        <button role="tab" data-tab="marker" aria-selected="false">Add marker</button>
+        <button role="tab" data-tab="manage" aria-selected="false">Manage</button>
+      </nav>
+
+      <!-- Post update -->
+      <form id="update-form" class="tab-body" data-panel="update">
+        <label class="field">
+          <span>Update</span>
+          <textarea id="u-text" rows="5" maxlength="1000" required placeholder="e.g. Fighting reported near Lalibela; the road to Woldia is closed."></textarea>
+          <small class="muted"><span id="u-count">0</span>/1000</small>
+        </label>
+        <label class="field">
+          <span>Date and time</span>
+          <input id="u-date" type="datetime-local" required>
+        </label>
+        <div class="field">
+          <span>Location <span class="muted">(optional: adds a "Show on map" link)</span></span>
+          <div class="loc-row">
+            <input id="u-loc" type="text" placeholder="Click the map, or type lat, lng" autocomplete="off">
+            <button type="button" class="btn ghost" data-clear="u-loc">Clear</button>
+          </div>
+        </div>
+        <label class="field narrow">
+          <span>Zoom level for "Show on map"</span>
+          <input id="u-zoom" type="number" min="5" max="15" value="10">
+        </label>
+        <button class="btn primary" type="submit">Post update</button>
+      </form>
+
+      <!-- Add marker -->
+      <form id="marker-form" class="tab-body" data-panel="marker" hidden>
+        <label class="field">
+          <span>Title</span>
+          <input id="m-title" type="text" maxlength="200" required placeholder="e.g. Clashes in Debre Tabor">
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Type</span>
+            <select id="m-type"></select>
+          </label>
+          <label class="field">
+            <span>Date</span>
+            <input id="m-date" type="date" required>
+          </label>
+        </div>
+        <div class="field">
+          <span>Location</span>
+          <div class="loc-row">
+            <input id="m-loc" type="text" required placeholder="Click the map, or type lat, lng" autocomplete="off">
+            <button type="button" class="btn ghost" data-clear="m-loc">Clear</button>
+          </div>
+        </div>
+        <label class="field">
+          <span>Description <span class="muted">(optional)</span></span>
+          <textarea id="m-desc" rows="3" maxlength="2000"></textarea>
+        </label>
+        <label class="field">
+          <span>Source link <span class="muted">(optional)</span></span>
+          <input id="m-source" type="url" maxlength="500" placeholder="https://…">
+        </label>
+        <button class="btn primary" type="submit">Add marker</button>
+      </form>
+
+      <!-- Manage -->
+      <div class="tab-body" data-panel="manage" hidden>
+        <div class="manage-head">
+          <h2>Updates</h2>
+          <button type="button" class="btn ghost small" id="refresh">Refresh</button>
+        </div>
+        <ul id="list-updates" class="manage-list"></ul>
+        <h2>Markers</h2>
+        <ul id="list-markers" class="manage-list"></ul>
+        <p class="muted small">Everything is also saved in the Google Sheet "DeepState ET data" in your Google Drive.</p>
+      </div>
+    </section>
+
+    <section class="dash-map">
+      <div class="map-search">
+        <input id="town-search" type="search" placeholder="Jump to a town…" autocomplete="off" aria-label="Jump to a town">
+        <ul id="town-results" class="search-results" hidden></ul>
+      </div>
+      <div id="admin-map" aria-label="Map for choosing a location"></div>
+      <p class="map-hint" id="map-hint">Click the map to set the location</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast admin-toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

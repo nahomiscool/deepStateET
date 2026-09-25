@@ -567,9 +567,29 @@
       return null;
     }));
     const groups = results.filter(Boolean).flat();
+    const events = dashboardEvents(entry.snapshot ? dayDate(entry.date) : null);
+    if (events.length) groups.push({ name: t('events'), features: events });
     const dataset = groups.length ? buildDataset(groups) : null;
     state.datasets.set(cacheKey, dataset);
     return dataset;
+  }
+
+  // Event markers added in the dashboard (admin.html), as GeoJSON features.
+  // For a past snapshot, only events up to that day are included.
+  let dashboardMarkers = [];
+  function dashboardEvents(until) {
+    const end = until ? until.getTime() + 12 * 3600000 : Infinity;
+    return dashboardMarkers
+      .filter((m) => isFinite(m.lat) && isFinite(m.lng) && (Geo.parseDate(m.date) || new Date(0)).getTime() <= end)
+      .map((m) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [m.lng, m.lat] },
+        properties: Object.assign(
+          { name: m.title, 'marker-color': eventColor(m.type), Type: m.type || 'Other', Date: String(m.date).slice(0, 10) },
+          m.description ? { description: m.description } : {},
+          m.source ? { Source: m.source } : {}
+        )
+      }));
   }
 
   // ---------- rendering the data ----------
@@ -1241,6 +1261,15 @@
     state.meta = meta || {};
     manualUpdates = Array.isArray(updates) ? updates : [];
     autoUpdates = Array.isArray(changes) ? changes : [];
+    if (state.config.liveProxy) {
+      // Updates and markers posted from the dashboard.
+      const sep = state.config.liveProxy.includes('?') ? '&' : '?';
+      const posted = await fetchJSON(state.config.liveProxy + sep + 'action=data', null);
+      if (posted) {
+        manualUpdates = manualUpdates.concat(Array.isArray(posted.updates) ? posted.updates : []);
+        dashboardMarkers = Array.isArray(posted.markers) ? posted.markers : [];
+      }
+    }
 
     setupLanguage();
     document.title = state.config.title;
