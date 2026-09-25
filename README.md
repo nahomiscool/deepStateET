@@ -65,8 +65,8 @@ with the password set in the Google Apps Script (`ADMIN_PASSWORD` in `tools/live
   a description and a source link. Click the map or search for a town to set the location.
 - **Manage:** see and delete what you've posted.
 
-Everything is saved in a Google Sheet called "DeepState ET data" in your Google Drive, so it needs no GitHub
-editing and no GitHub Actions. New posts appear on the site the next time the page loads. Markers show as
+Everything is saved inside the Google Apps Script itself (its script properties, about 500 KB, enough for
+several hundred entries), so it needs no extra Google permissions, no GitHub editing and no GitHub Actions. New posts appear on the site the next time the page loads. Markers show as
 the "Events" layer and work with the 7/30-day filter.
 
 ## Adding a layer

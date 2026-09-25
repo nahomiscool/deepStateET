@@ -4,23 +4,20 @@
  * 1. Serves the current layers of your Google My Map to the website, so the map
  *    works without the GitHub sync workflow. Only the map below is served.
  * 2. Stores the written updates and event markers you add in the dashboard
- *    (admin.html) in a Google Sheet called "DeepState ET data" in your Drive.
+ *    (admin.html). They're kept in the script's own storage, which needs no
+ *    extra Google permissions.
  *
  * First-time setup:
  *  1. Go to https://script.google.com and click "New project".
  *  2. Delete the sample code, paste this whole file, and click Save.
  *  3. Change ADMIN_PASSWORD below to your own password.
- *  4. Choose "setup" in the function menu next to ▶ Run, click Run, and allow the permissions.
- *  5. Click Deploy → New deployment → gear icon → "Web app".
+ *  4. Click Deploy → New deployment → gear icon → "Web app".
  *     Execute as: Me. Who has access: Anyone. Click Deploy and allow the permissions.
- *  6. Put the "Web app URL" (ends in /exec) in data/config.json as "liveProxy".
- *
- *  If posting says "You do not have permission to call SpreadsheetApp": choose "setup"
- *  in the function menu next to ▶ Run, click Run, and allow the permissions.
+ *  5. Put the "Web app URL" (ends in /exec) in data/config.json as "liveProxy".
  *
  * Updating an existing deployment (keeps the same URL):
- *  Paste the new code, click Save, then Deploy → Manage deployments → pencil icon →
- *  Version: "New version" → Deploy.
+ *  Paste the new code, set ADMIN_PASSWORD again, click Save, then
+ *  Deploy → Manage deployments → pencil icon → Version: "New version" → Deploy.
  *
  * The map itself must be shared as "Anyone with this link can view".
  */
@@ -28,24 +25,9 @@ const MAP_ID = '1XPJWGQgVK216o5nXwIpydH-y5ebbj24';
 const ADMIN_PASSWORD = 'change-me'; // ← choose your own password (at least 8 characters)
 const CACHE_SECONDS = 300;          // Google is asked for each map layer at most once every 5 minutes
 
-const SHEETS = {
-  Updates: ['id', 'date', 'text', 'lat', 'lng', 'zoom'],
-  Markers: ['id', 'date', 'title', 'type', 'description', 'source', 'lat', 'lng']
-};
-
-// ---------- one-time setup ----------
-
-// Run this once from the editor: pick "setup" in the function menu next to ▶ Run, then click Run.
-// Google then asks you to allow access to Sheets and external requests, which the web app
-// needs but can't ask for by itself. The log shows the address of the data sheet.
-function setup() {
-  const ss = spreadsheet_();
-  UrlFetchApp.fetch('https://www.google.com/maps/d/kml?forcekml=1&mid=' + MAP_ID, { muteHttpExceptions: true });
-  console.log('Setup done. Data sheet: ' + ss.getUrl());
-  if (ADMIN_PASSWORD === 'change-me' || ADMIN_PASSWORD.length < 8) {
-    console.log('Now set ADMIN_PASSWORD at the top of the script (at least 8 characters), then deploy a new version.');
-  }
-}
+// Updates and markers are stored as script properties: "u:<id>" and "m:<id>" → JSON.
+const LISTS = { Updates: 'u:', Markers: 'm:' };
+const MAX_STORAGE = 480000; // Apps Script allows about 500 KB of properties in total
 
 // ---------- web app entry points ----------
 
@@ -105,54 +87,40 @@ function checkPassword_(password) {
   return null;
 }
 
-// ---------- updates and markers (Google Sheet) ----------
+// ---------- updates and markers ----------
 
-function spreadsheet_() {
-  const props = PropertiesService.getScriptProperties();
-  let id = props.getProperty('SHEET_ID');
-  let ss = null;
-  if (id) {
-    try { ss = SpreadsheetApp.openById(id); } catch (err) { ss = null; }
-  }
-  if (!ss) {
-    ss = SpreadsheetApp.create('DeepState ET data');
-    props.setProperty('SHEET_ID', ss.getId());
-  }
-  for (const [name, headers] of Object.entries(SHEETS)) {
-    let sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      sheet.appendRow(headers);
-      sheet.setFrozenRows(1);
-    }
-  }
-  const blank = ss.getSheetByName('Sheet1');
-  if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
-  return ss;
+function store_() {
+  return PropertiesService.getScriptProperties();
 }
 
-function rows_(ss, name) {
-  const sheet = ss.getSheetByName(name);
-  const values = sheet.getDataRange().getValues();
-  const headers = values.shift();
-  return values
-    .filter((row) => row[0] !== '')
-    .map((row) => Object.fromEntries(headers.map((h, i) => [h, row[i] instanceof Date ? row[i].toISOString() : row[i]])));
+function items_(prefix) {
+  const all = store_().getProperties();
+  const out = [];
+  for (const key of Object.keys(all)) {
+    if (key.indexOf(prefix) !== 0) continue;
+    try { out.push(JSON.parse(all[key])); } catch (err) { /* skip damaged entries */ }
+  }
+  return out;
+}
+
+function save_(prefix, item) {
+  const value = JSON.stringify(item);
+  const all = store_().getProperties();
+  const used = Object.keys(all).reduce((sum, k) => sum + k.length + all[k].length, 0);
+  if (used + value.length > MAX_STORAGE) {
+    throw new Error('Storage is full. Delete some old updates or markers in the Manage tab first.');
+  }
+  store_().setProperty(prefix + item.id, value);
 }
 
 function readData_() {
-  const ss = spreadsheet_();
-  const num = (v) => (v === '' || v === null ? null : Number(v));
   return {
-    updates: rows_(ss, 'Updates').map((r) => ({
-      id: String(r.id), date: String(r.date), text: String(r.text),
-      location: r.lat !== '' && r.lng !== '' ? [num(r.lat), num(r.lng)] : undefined,
-      zoom: num(r.zoom) || undefined
+    updates: items_(LISTS.Updates).map((r) => ({
+      id: r.id, date: r.date, text: r.text,
+      location: r.lat !== '' && r.lng !== '' ? [r.lat, r.lng] : undefined,
+      zoom: r.zoom || undefined
     })),
-    markers: rows_(ss, 'Markers').map((r) => ({
-      id: String(r.id), date: String(r.date), title: String(r.title), type: String(r.type),
-      description: String(r.description), source: String(r.source), lat: num(r.lat), lng: num(r.lng)
-    }))
+    markers: items_(LISTS.Markers)
   };
 }
 
@@ -180,7 +148,7 @@ function addUpdate_(item) {
   const lng = coordinate_(item.lng, 20, 60);
   const zoom = item.zoom ? Math.max(4, Math.min(16, Math.round(Number(item.zoom)) || 10)) : '';
   const id = Utilities.getUuid();
-  spreadsheet_().getSheetByName('Updates').appendRow([id, date_(item.date), text, lat, lng, lat === '' ? '' : zoom]);
+  save_(LISTS.Updates, { id, date: date_(item.date), text, lat, lng, zoom: lat === '' ? '' : zoom });
   return { ok: true, id };
 }
 
@@ -193,23 +161,20 @@ function addMarker_(item) {
   const source = clean_(item.source, 500);
   if (source && !/^https?:\/\//i.test(source)) throw new Error('The source must be a link starting with http:// or https://');
   const id = Utilities.getUuid();
-  spreadsheet_().getSheetByName('Markers').appendRow([
-    id, date_(item.date), title, clean_(item.type, 40) || 'Other', clean_(item.description, 2000), source, lat, lng
-  ]);
+  save_(LISTS.Markers, {
+    id, date: date_(item.date), title, type: clean_(item.type, 40) || 'Other',
+    description: clean_(item.description, 2000), source, lat, lng
+  });
   return { ok: true, id };
 }
 
-function deleteRow_(sheetName, id) {
-  if (!SHEETS[sheetName]) throw new Error('Unknown list');
-  const sheet = spreadsheet_().getSheetByName(sheetName);
-  const ids = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
-  for (let i = ids.length - 1; i >= 1; i--) {
-    if (String(ids[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
-      return { ok: true };
-    }
-  }
-  throw new Error('Not found (it may already be deleted)');
+function deleteRow_(list, id) {
+  const prefix = LISTS[list];
+  if (!prefix) throw new Error('Unknown list');
+  const key = prefix + String(id);
+  if (store_().getProperty(key) === null) throw new Error('Not found (it may already be deleted)');
+  store_().deleteProperty(key);
+  return { ok: true };
 }
 
 // ---------- My Maps layers ----------
