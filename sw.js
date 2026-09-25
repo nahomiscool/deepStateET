@@ -1,6 +1,6 @@
 // Offline support: pages, scripts and map data are fetched from the network first, and
 // the last copy seen is used when the network is unavailable. Bump VERSION to clear old copies.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL = ['./', 'manifest.webmanifest', 'img/icon.svg', 'img/icon-192.png', 'ref/regions.geojson', 'ref/towns.geojson'];
 
 self.addEventListener('install', (event) => {
@@ -18,6 +18,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Videos are streamed in pieces (range requests), which can't be cached: leave them to the browser.
+  if (event.request.headers.has('range') || url.pathname.includes('/media/')) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
