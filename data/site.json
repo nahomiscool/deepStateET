@@ -1,0 +1,789 @@
+{
+    "title": "DeepState ET",
+    "siteUrl": "https://nahomiscool.github.io/deepStateET/",
+    "repo": "nahomiscool/deepStateET",
+    "center": [
+        9.1,
+        40.5
+    ],
+    "zoom": 6,
+    "publishedAt": "2026-09-25T10:59:45Z",
+    "factions": [
+        {
+            "id": 1,
+            "name": "GOV",
+            "color": "#888888"
+        },
+        {
+            "id": 2,
+            "name": "TPLF",
+            "color": "#FF5252"
+        }
+    ],
+    "history": [],
+    "posts": [
+        {
+            "id": 1,
+            "type": "captured",
+            "text": "The TPLF has taken control  of the Airport in Mekele",
+            "lat": 13.4715,
+            "lng": 39.529,
+            "at": "2026-09-25T08:47:00Z",
+            "source": null
+        }
+    ],
+    "places": [
+        {
+            "id": 1,
+            "name": "Aba Tenna Dejazmach Yilma International Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.62355,
+            "lng": 41.85503,
+            "description": "Type: Large Airport\nMunicipality: Dire Dawa\nICAO: HADR\nIATA: DIR\nElevation: 3827 ft\nScheduled service: yes"
+        },
+        {
+            "id": 17,
+            "name": "Adaba Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.02295,
+            "lng": 39.27316,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Adaba\nICAO: HAAD\nElevation: 7896 ft\nScheduled service: no"
+        },
+        {
+            "id": 2,
+            "name": "Addis Ababa Bole International Airport",
+            "category": "Airports and Airstrips",
+            "lat": 8.97789,
+            "lng": 38.7993,
+            "description": "Type: Large Airport\nMunicipality: Addis Ababa\nICAO: HAAB\nIATA: ADD\nElevation: 7630 ft\nScheduled service: yes"
+        },
+        {
+            "id": 56,
+            "name": "African Union Heliport",
+            "category": "Airports and Airstrips",
+            "lat": 8.99948,
+            "lng": 38.7425,
+            "description": "Type: Heliport\nMunicipality: Addis Ababa\nScheduled service: no"
+        },
+        {
+            "id": 5,
+            "name": "Arba Minch Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.03939,
+            "lng": 37.5905,
+            "description": "Type: Medium Airport\nMunicipality: Arba Minch\nICAO: HAAM\nIATA: AMH\nElevation: 3901 ft\nScheduled service: yes"
+        },
+        {
+            "id": 6,
+            "name": "Asosa Airport",
+            "category": "Airports and Airstrips",
+            "lat": 10.0185,
+            "lng": 34.5863,
+            "description": "Type: Medium Airport\nMunicipality: Asosa\nICAO: HASO\nIATA: ASO\nElevation: 5100 ft\nScheduled service: yes"
+        },
+        {
+            "id": 7,
+            "name": "Axum Airport",
+            "category": "Airports and Airstrips",
+            "lat": 14.1468,
+            "lng": 38.7728,
+            "description": "Type: Medium Airport\nMunicipality: Axum\nICAO: HAAX\nIATA: AXU\nElevation: 6959 ft\nScheduled service: yes"
+        },
+        {
+            "id": 8,
+            "name": "Bahir Dar Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.6081,
+            "lng": 37.3216,
+            "description": "Type: Medium Airport\nMunicipality: Bahir Dar\nICAO: HABD\nIATA: BJR\nElevation: 5978 ft\nScheduled service: yes"
+        },
+        {
+            "id": 18,
+            "name": "Bameza - Grand Ethiopian Renaissance Dam Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.1269,
+            "lng": 35.04396,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Bameza\nElevation: 2047 ft\nScheduled service: no"
+        },
+        {
+            "id": 19,
+            "name": "Beica Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.38639,
+            "lng": 34.5219,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Beica\nICAO: HABE\nIATA: BEI\nElevation: 5410 ft\nScheduled service: no"
+        },
+        {
+            "id": 20,
+            "name": "Beles Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.3126,
+            "lng": 36.4164,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Pawe\nICAO: HAPW\nIATA: PWI\nElevation: 3695 ft\nScheduled service: no"
+        },
+        {
+            "id": 21,
+            "name": "Debre Markos Airport",
+            "category": "Airports and Airstrips",
+            "lat": 10.3215,
+            "lng": 37.74189,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Debre Markos\nICAO: HADM\nIATA: DBM\nElevation: 8136 ft\nScheduled service: yes"
+        },
+        {
+            "id": 22,
+            "name": "Debre Tabor Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.88481,
+            "lng": 38.00924,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Debre Tabor\nICAO: HADT\nIATA: DBT\nElevation: 8490 ft\nScheduled service: no"
+        },
+        {
+            "id": 23,
+            "name": "Dembidollo Airport",
+            "category": "Airports and Airstrips",
+            "lat": 8.554,
+            "lng": 34.858,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Dembidollo\nICAO: HADD\nIATA: DEM\nElevation: 5200 ft\nScheduled service: yes"
+        },
+        {
+            "id": 24,
+            "name": "Dodola Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.02056,
+            "lng": 39.0511,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Dodola\nICAO: HADO\nElevation: 8234 ft\nScheduled service: no"
+        },
+        {
+            "id": 25,
+            "name": "Dolo Airport",
+            "category": "Airports and Airstrips",
+            "lat": 4.17489,
+            "lng": 42.03296,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Dolo\nElevation: 630 ft\nScheduled service: no"
+        },
+        {
+            "id": 26,
+            "name": "Fincha Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.58439,
+            "lng": 37.37786,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Fincha\nICAO: HAFN\nIATA: FNH\nElevation: 7600 ft\nScheduled service: no"
+        },
+        {
+            "id": 9,
+            "name": "Gambela Airport",
+            "category": "Airports and Airstrips",
+            "lat": 8.12876,
+            "lng": 34.5631,
+            "description": "Type: Medium Airport\nMunicipality: Gambela\nICAO: HAGM\nIATA: GMB\nElevation: 1614 ft\nScheduled service: yes"
+        },
+        {
+            "id": 27,
+            "name": "Ganada Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.33717,
+            "lng": 37.02299,
+            "description": "Type: Small Airport / Airstrip\nScheduled service: no"
+        },
+        {
+            "id": 28,
+            "name": "Geladi Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.98444,
+            "lng": 46.4214,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Geladi\nICAO: HAGL\nIATA: GLC\nElevation: 1383 ft\nScheduled service: no"
+        },
+        {
+            "id": 3,
+            "name": "Gerad Wilwal International Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.33191,
+            "lng": 42.91181,
+            "description": "Type: Large Airport\nMunicipality: Jijiga\nICAO: HAJJ\nIATA: JIJ\nElevation: 5954 ft\nScheduled service: yes"
+        },
+        {
+            "id": 29,
+            "name": "Ghinnir Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.15,
+            "lng": 40.717,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Ghinnir\nICAO: HAGH\nIATA: GNN\nElevation: 6499 ft\nScheduled service: no"
+        },
+        {
+            "id": 10,
+            "name": "Gode Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.93513,
+            "lng": 43.5786,
+            "description": "Type: Medium Airport\nMunicipality: Gode\nICAO: HAGO\nIATA: GDE\nElevation: 834 ft\nScheduled service: yes"
+        },
+        {
+            "id": 11,
+            "name": "Gondar Airport",
+            "category": "Airports and Airstrips",
+            "lat": 12.5199,
+            "lng": 37.434,
+            "description": "Type: Medium Airport\nMunicipality: Azezo\nICAO: HAGN\nIATA: GDQ\nElevation: 6449 ft\nScheduled service: yes"
+        },
+        {
+            "id": 30,
+            "name": "Gore Airport",
+            "category": "Airports and Airstrips",
+            "lat": 8.1614,
+            "lng": 35.5529,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Gore\nICAO: HAGR\nIATA: GOR\nElevation: 6580 ft\nScheduled service: no"
+        },
+        {
+            "id": 12,
+            "name": "Harar Meda Airport",
+            "category": "Airports and Airstrips",
+            "lat": 8.7163,
+            "lng": 39.0059,
+            "description": "Type: Medium Airport\nMunicipality: Debre Zeyit\nICAO: HAHM\nIATA: QHR\nElevation: 6201 ft\nScheduled service: no"
+        },
+        {
+            "id": 4,
+            "name": "Hawassa International Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.10061,
+            "lng": 38.39646,
+            "description": "Type: Large Airport\nMunicipality: Hawassa\nICAO: HALA\nIATA: AWA\nElevation: 5450 ft\nScheduled service: yes"
+        },
+        {
+            "id": 31,
+            "name": "Humera Airport",
+            "category": "Airports and Airstrips",
+            "lat": 13.83012,
+            "lng": 36.88237,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Akwi\nICAO: HAHU\nIATA: HUE\nElevation: 1930 ft\nScheduled service: yes"
+        },
+        {
+            "id": 13,
+            "name": "Jimma Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.66609,
+            "lng": 36.8166,
+            "description": "Type: Medium Airport\nMunicipality: Jimma\nICAO: HAJM\nIATA: JIM\nElevation: 5500 ft\nScheduled service: yes"
+        },
+        {
+            "id": 14,
+            "name": "Jinka Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.74966,
+            "lng": 36.56017,
+            "description": "Type: Medium Airport\nMunicipality: Jinka\nICAO: HABC\nIATA: BCO\nElevation: 4475 ft\nScheduled service: yes"
+        },
+        {
+            "id": 15,
+            "name": "Kebri Dahar Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.73258,
+            "lng": 44.24134,
+            "description": "Type: Medium Airport\nMunicipality: Kebri Dahar\nICAO: HAKD\nIATA: ABK\nElevation: 1800 ft\nScheduled service: yes"
+        },
+        {
+            "id": 32,
+            "name": "Kelafo East Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.657,
+            "lng": 44.35,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Kelafo\nICAO: HAKL\nIATA: LFO\nElevation: 1730 ft\nScheduled service: no"
+        },
+        {
+            "id": 33,
+            "name": "Kibbish Wells Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.296,
+            "lng": 35.8682,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Kibbish Wells\nElevation: 1403 ft\nScheduled service: no"
+        },
+        {
+            "id": 34,
+            "name": "Kombolcha Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.10975,
+            "lng": 39.72591,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Dessie\nICAO: HADC\nIATA: DSE\nElevation: 6120 ft\nScheduled service: yes"
+        },
+        {
+            "id": 35,
+            "name": "Lalibela Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.97523,
+            "lng": 38.9802,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Girany Amba\nICAO: HALL\nIATA: LLI\nElevation: 6506 ft\nScheduled service: no"
+        },
+        {
+            "id": 36,
+            "name": "Lideta Army Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.00454,
+            "lng": 38.72693,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Addis Ababa\nICAO: HAAL\nElevation: 7749 ft\nScheduled service: no"
+        },
+        {
+            "id": 37,
+            "name": "Mekane Selam Airport",
+            "category": "Airports and Airstrips",
+            "lat": 10.7254,
+            "lng": 38.7415,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Mekane Selam\nICAO: HAMA\nIATA: MKS\nElevation: 8405 ft\nScheduled service: no"
+        },
+        {
+            "id": 16,
+            "name": "Mekele Alula Aba Nega Airport",
+            "category": "Airports and Airstrips",
+            "lat": 13.4674,
+            "lng": 39.5335,
+            "description": "Type: Medium Airport\nMunicipality: Mekele\nICAO: HAMK\nIATA: MQX\nElevation: 7396 ft\nScheduled service: yes"
+        },
+        {
+            "id": 38,
+            "name": "Mendi Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.80009,
+            "lng": 35.1182,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Mendi\nICAO: HAMN\nIATA: NDM\nElevation: 5500 ft\nScheduled service: no"
+        },
+        {
+            "id": 39,
+            "name": "Metema Airport",
+            "category": "Airports and Airstrips",
+            "lat": 12.933,
+            "lng": 36.167,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Metema\nICAO: HAMM\nIATA: ETE\nElevation: 2650 ft\nScheduled service: no"
+        },
+        {
+            "id": 40,
+            "name": "Mizan Teferi Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.9571,
+            "lng": 35.5547,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Mizan Teferi\nICAO: HAMT\nIATA: MTF\nElevation: 4396 ft\nScheduled service: yes"
+        },
+        {
+            "id": 41,
+            "name": "Moyale Airport",
+            "category": "Airports and Airstrips",
+            "lat": 3.5623,
+            "lng": 39.0433,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Moyale\nIATA: MYS\nElevation: 3887 ft\nScheduled service: no"
+        },
+        {
+            "id": 42,
+            "name": "Mui River Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.8646,
+            "lng": 35.7485,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Omo National Park\nICAO: HAMR\nIATA: MUJ\nElevation: 1834 ft\nScheduled service: no"
+        },
+        {
+            "id": 43,
+            "name": "Negele Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.2897,
+            "lng": 39.7023,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Negele Borana\nICAO: HANG\nIATA: EGL\nElevation: 5230 ft\nScheduled service: no"
+        },
+        {
+            "id": 44,
+            "name": "Nekemte Airport",
+            "category": "Airports and Airstrips",
+            "lat": 9.03433,
+            "lng": 36.61315,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Nekemte\nICAO: HANK\nIATA: NEK\nElevation: 6500 ft\nScheduled service: no"
+        },
+        {
+            "id": 45,
+            "name": "Omorate Airport",
+            "category": "Airports and Airstrips",
+            "lat": 4.80059,
+            "lng": 36.12643,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Omorate\nElevation: 1243 ft\nScheduled service: no"
+        },
+        {
+            "id": 46,
+            "name": "Robe Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.11903,
+            "lng": 40.04517,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Goba\nICAO: HAGB\nIATA: GOB\nElevation: 7892 ft\nScheduled service: no"
+        },
+        {
+            "id": 47,
+            "name": "Semera Airport",
+            "category": "Airports and Airstrips",
+            "lat": 11.7875,
+            "lng": 40.9915,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Semera\nICAO: HASM\nIATA: SZE\nElevation: 1390 ft\nScheduled service: yes"
+        },
+        {
+            "id": 48,
+            "name": "Shakiso Airport",
+            "category": "Airports and Airstrips",
+            "lat": 5.6923,
+            "lng": 38.9764,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Shakiso\nICAO: HASK\nIATA: SKR\nElevation: 5815 ft\nScheduled service: no"
+        },
+        {
+            "id": 49,
+            "name": "Sheikh Hussein Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.74175,
+            "lng": 40.69557,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Sheikh Hussein\nICAO: HASH\nElevation: 6500 ft\nScheduled service: no"
+        },
+        {
+            "id": 50,
+            "name": "Shilavo Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.07755,
+            "lng": 44.76374,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Shilavo\nICAO: HASL\nIATA: HIL\nElevation: 1296 ft\nScheduled service: yes"
+        },
+        {
+            "id": 51,
+            "name": "Shire Inda Selassie Airport",
+            "category": "Airports and Airstrips",
+            "lat": 14.0757,
+            "lng": 38.27359,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Shire Inda Selassie\nICAO: HASR\nIATA: SHC\nElevation: 6207 ft\nScheduled service: yes"
+        },
+        {
+            "id": 52,
+            "name": "Soddu Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.80281,
+            "lng": 37.68622,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Soddu\nICAO: HASD\nIATA: SXU\nElevation: 6400 ft\nScheduled service: no"
+        },
+        {
+            "id": 53,
+            "name": "Tippi Airport",
+            "category": "Airports and Airstrips",
+            "lat": 7.2024,
+            "lng": 35.415,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Tippi\nICAO: HATP\nIATA: TIE\nElevation: 1100 ft\nScheduled service: yes"
+        },
+        {
+            "id": 54,
+            "name": "Tum Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.26,
+            "lng": 35.5184,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Tum\nIATA: TUJ\nElevation: 4700 ft\nScheduled service: no"
+        },
+        {
+            "id": 55,
+            "name": "Warder Airport",
+            "category": "Airports and Airstrips",
+            "lat": 6.9724,
+            "lng": 45.3334,
+            "description": "Type: Small Airport / Airstrip\nMunicipality: Warder\nICAO: HAWR\nIATA: WRA\nElevation: 1850 ft\nScheduled service: no"
+        },
+        {
+            "id": 94,
+            "name": "Akobo",
+            "category": "Border Crossings",
+            "lat": 7.783,
+            "lng": 33.05,
+            "description": "Ethiopia ↔ South Sudan\nCrossing point near Gambela Region into South Sudan's Jonglei/Akobo area."
+        },
+        {
+            "id": 90,
+            "name": "Dewele",
+            "category": "Border Crossings",
+            "lat": 11.033,
+            "lng": 42.617,
+            "description": "Ethiopia ↔ Djibouti\nRail/road border crossing, Somali Region ↔ Djibouti."
+        },
+        {
+            "id": 92,
+            "name": "Dolo Odo",
+            "category": "Border Crossings",
+            "lat": 4.4167,
+            "lng": 41.4167,
+            "description": "Ethiopia ↔ Somalia\nSouthern crossing at the Dawa/Ganale confluence, Somali Region."
+        },
+        {
+            "id": 89,
+            "name": "Galafi",
+            "category": "Border Crossings",
+            "lat": 11.71694,
+            "lng": 41.83667,
+            "description": "Ethiopia ↔ Djibouti\nMain freight corridor crossing (Afar Region ↔ Dikhil Region, Djibouti)."
+        },
+        {
+            "id": 88,
+            "name": "Humera",
+            "category": "Border Crossings",
+            "lat": 14.28611,
+            "lng": 36.60972,
+            "description": "Ethiopia ↔ Sudan / Eritrea\nBorder town in Tigray Region, close to both the Sudan and Eritrea frontiers."
+        },
+        {
+            "id": 87,
+            "name": "Kurmuk",
+            "category": "Border Crossings",
+            "lat": 10.55639,
+            "lng": 34.28417,
+            "description": "Ethiopia ↔ Sudan\nCrossing near Ethiopia's Benishangul-Gumuz Region into Sudan's Blue Nile State."
+        },
+        {
+            "id": 86,
+            "name": "Metemma / Gallabat",
+            "category": "Border Crossings",
+            "lat": 12.967,
+            "lng": 36.2,
+            "description": "Ethiopia ↔ Sudan\nMajor trade crossing to Sudan (Gedaref State), Amhara Region."
+        },
+        {
+            "id": 85,
+            "name": "Moyale",
+            "category": "Border Crossings",
+            "lat": 3.5236,
+            "lng": 39.0561,
+            "description": "Ethiopia ↔ Kenya\nMain official land crossing to Kenya, on the A1 highway (Moyale, Oromia Region)."
+        },
+        {
+            "id": 91,
+            "name": "Tog Wajaale",
+            "category": "Border Crossings",
+            "lat": 9.60139,
+            "lng": 43.33611,
+            "description": "Ethiopia ↔ Somalia (Somaliland)\nBusy trade crossing near Jijiga, Somali Region."
+        },
+        {
+            "id": 93,
+            "name": "Zalambessa",
+            "category": "Border Crossings",
+            "lat": 14.52583,
+            "lng": 39.38583,
+            "description": "Ethiopia ↔ Eritrea\nFormer official crossing, Tigray Region; closed since the 1998–2000 war and has seen only intermittent reopening since."
+        },
+        {
+            "id": 57,
+            "name": "Aba Samuel",
+            "category": "Dams and Reservoirs",
+            "lat": 8.78806,
+            "lng": 38.70611,
+            "description": "River: Akaki\nBasin: Afar Triangle"
+        },
+        {
+            "id": 58,
+            "name": "Alwero",
+            "category": "Dams and Reservoirs",
+            "lat": 7.87194,
+            "lng": 34.49889,
+            "description": "River: Alwero\nBasin: Nile basin"
+        },
+        {
+            "id": 59,
+            "name": "Angereb",
+            "category": "Dams and Reservoirs",
+            "lat": 12.61306,
+            "lng": 37.48611,
+            "description": "River: Lesser Angereb\nBasin: Nile basin"
+        },
+        {
+            "id": 60,
+            "name": "Arjo Didessa",
+            "category": "Dams and Reservoirs",
+            "lat": 8.52,
+            "lng": 36.66889,
+            "description": "River: Didessa\nBasin: Nile basin"
+        },
+        {
+            "id": 61,
+            "name": "Chomen Lake",
+            "category": "Dams and Reservoirs",
+            "lat": 9.56111,
+            "lng": 37.41306,
+            "description": "River: Fincha\nBasin: Nile basin"
+        },
+        {
+            "id": 62,
+            "name": "Dire",
+            "category": "Dams and Reservoirs",
+            "lat": 9.14806,
+            "lng": 38.93389,
+            "description": "River: Dire\nBasin: Afar Triangle"
+        },
+        {
+            "id": 63,
+            "name": "Geba",
+            "category": "Dams and Reservoirs",
+            "lat": 8.21111,
+            "lng": 36.07306,
+            "description": "River: Gebba\nBasin: Nile basin"
+        },
+        {
+            "id": 64,
+            "name": "Gefersa",
+            "category": "Dams and Reservoirs",
+            "lat": 9.06389,
+            "lng": 38.64194,
+            "description": "River: Akaki\nBasin: Afar Triangle"
+        },
+        {
+            "id": 65,
+            "name": "Genale Dawa III",
+            "category": "Dams and Reservoirs",
+            "lat": 5.51,
+            "lng": 39.71806,
+            "description": "River: Ganale\nBasin: Jubba basin"
+        },
+        {
+            "id": 66,
+            "name": "Genale Dawa VI",
+            "category": "Dams and Reservoirs",
+            "lat": 5.68333,
+            "lng": 40.93333,
+            "description": "River: Ganale\nBasin: Jubba basin"
+        },
+        {
+            "id": 68,
+            "name": "Gidabo",
+            "category": "Dams and Reservoirs",
+            "lat": 6.43806,
+            "lng": 38.16806,
+            "description": "River: Gidabo\nBasin: Rift Valley"
+        },
+        {
+            "id": 69,
+            "name": "Gilgel Gibe I",
+            "category": "Dams and Reservoirs",
+            "lat": 7.83111,
+            "lng": 37.32194,
+            "description": "River: Gilgel Gibe\nBasin: Turkana basin"
+        },
+        {
+            "id": 70,
+            "name": "Gilgel Gibe III",
+            "category": "Dams and Reservoirs",
+            "lat": 6.84389,
+            "lng": 37.30111,
+            "description": "River: Omo\nBasin: Turkana basin"
+        },
+        {
+            "id": 67,
+            "name": "Grand Ethiopian Renaissance Dam (GERD)",
+            "category": "Dams and Reservoirs",
+            "lat": 11.21389,
+            "lng": 35.08889,
+            "description": "River: Blue Nile\nBasin: Nile basin"
+        },
+        {
+            "id": 71,
+            "name": "Kessem",
+            "category": "Dams and Reservoirs",
+            "lat": 9.15,
+            "lng": 39.88306,
+            "description": "River: Kessem\nBasin: Afar Triangle"
+        },
+        {
+            "id": 72,
+            "name": "Koka Lake",
+            "category": "Dams and Reservoirs",
+            "lat": 8.46806,
+            "lng": 39.15611,
+            "description": "River: Awash\nBasin: Afar Triangle"
+        },
+        {
+            "id": 73,
+            "name": "Koysha",
+            "category": "Dams and Reservoirs",
+            "lat": 6.58389,
+            "lng": 36.565,
+            "description": "River: Omo\nBasin: Turkana basin"
+        },
+        {
+            "id": 74,
+            "name": "Legedadi",
+            "category": "Dams and Reservoirs",
+            "lat": 9.06806,
+            "lng": 38.96194,
+            "description": "River: Sendafa\nBasin: Afar Triangle"
+        },
+        {
+            "id": 75,
+            "name": "Megech",
+            "category": "Dams and Reservoirs",
+            "lat": 12.505,
+            "lng": 37.46194,
+            "description": "River: Magech\nBasin: Nile basin"
+        },
+        {
+            "id": 76,
+            "name": "Melka Wakena",
+            "category": "Dams and Reservoirs",
+            "lat": 7.225,
+            "lng": 39.46194,
+            "description": "River: Shebelle\nBasin: Shebelle basin"
+        },
+        {
+            "id": 77,
+            "name": "Midmar Lake",
+            "category": "Dams and Reservoirs",
+            "lat": 14.20389,
+            "lng": 38.91111,
+            "description": "River: Wari\nBasin: Nile basin"
+        },
+        {
+            "id": 78,
+            "name": "Neshe",
+            "category": "Dams and Reservoirs",
+            "lat": 9.7636,
+            "lng": 37.25601,
+            "description": "River: Fincha\nBasin: Nile basin"
+        },
+        {
+            "id": 79,
+            "name": "Omo Kuraz",
+            "category": "Dams and Reservoirs",
+            "lat": 6.30194,
+            "lng": 36.05306,
+            "description": "River: Omo\nBasin: Turkana basin"
+        },
+        {
+            "id": 80,
+            "name": "Rib",
+            "category": "Dams and Reservoirs",
+            "lat": 12.03111,
+            "lng": 38.00806,
+            "description": "River: Rib\nBasin: Nile basin"
+        },
+        {
+            "id": 81,
+            "name": "Tekeze",
+            "category": "Dams and Reservoirs",
+            "lat": 13.34806,
+            "lng": 38.74194,
+            "description": "River: Tekeze\nBasin: Nile basin"
+        },
+        {
+            "id": 82,
+            "name": "Tendaho",
+            "category": "Dams and Reservoirs",
+            "lat": 11.69,
+            "lng": 40.955,
+            "description": "River: Awash\nBasin: Afar Triangle"
+        },
+        {
+            "id": 83,
+            "name": "Wedecha-Belebla",
+            "category": "Dams and Reservoirs",
+            "lat": 8.93806,
+            "lng": 39.00694,
+            "description": "River: -\nBasin: Afar Triangle"
+        },
+        {
+            "id": 84,
+            "name": "Zarema May-Day",
+            "category": "Dams and Reservoirs",
+            "lat": 13.735,
+            "lng": 37.79694,
+            "description": "River: Zarema\nBasin: Nile basin"
+        }
+    ]
+}

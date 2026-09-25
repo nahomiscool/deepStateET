@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>DeepState ET</title>
+  <link>https://nahomiscool.github.io/deepStateET/</link>
+  <atom:link href="https://nahomiscool.github.io/deepStateET/data/feed.xml" rel="self" type="application/rss+xml"/>
+  <description>News, events and changes of control on the DeepState ET map of Ethiopia.</description>
+  <language>en</language>
+  <item>
+    <title>The TPLF has taken control  of the Airport in Mekele</title>
+    <link>https://nahomiscool.github.io/deepStateET/</link>
+    <guid isPermaLink="false">post-1</guid>
+    <pubDate>Fri, 25 Sep 2026 08:47:00 +0000</pubDate>
+    <description>The TPLF has taken control  of the Airport in Mekele</description>
+  </item>
+</channel>
+</rss>
