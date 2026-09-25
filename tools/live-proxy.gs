@@ -10,9 +10,13 @@
  *  1. Go to https://script.google.com and click "New project".
  *  2. Delete the sample code, paste this whole file, and click Save.
  *  3. Change ADMIN_PASSWORD below to your own password.
- *  4. Click Deploy → New deployment → gear icon → "Web app".
+ *  4. Choose "setup" in the function menu next to ▶ Run, click Run, and allow the permissions.
+ *  5. Click Deploy → New deployment → gear icon → "Web app".
  *     Execute as: Me. Who has access: Anyone. Click Deploy and allow the permissions.
- *  5. Put the "Web app URL" (ends in /exec) in data/config.json as "liveProxy".
+ *  6. Put the "Web app URL" (ends in /exec) in data/config.json as "liveProxy".
+ *
+ *  If posting says "You do not have permission to call SpreadsheetApp": choose "setup"
+ *  in the function menu next to ▶ Run, click Run, and allow the permissions.
  *
  * Updating an existing deployment (keeps the same URL):
  *  Paste the new code, click Save, then Deploy → Manage deployments → pencil icon →
@@ -28,6 +32,20 @@ const SHEETS = {
   Updates: ['id', 'date', 'text', 'lat', 'lng', 'zoom'],
   Markers: ['id', 'date', 'title', 'type', 'description', 'source', 'lat', 'lng']
 };
+
+// ---------- one-time setup ----------
+
+// Run this once from the editor: pick "setup" in the function menu next to ▶ Run, then click Run.
+// Google then asks you to allow access to Sheets and external requests, which the web app
+// needs but can't ask for by itself. The log shows the address of the data sheet.
+function setup() {
+  const ss = spreadsheet_();
+  UrlFetchApp.fetch('https://www.google.com/maps/d/kml?forcekml=1&mid=' + MAP_ID, { muteHttpExceptions: true });
+  console.log('Setup done. Data sheet: ' + ss.getUrl());
+  if (ADMIN_PASSWORD === 'change-me' || ADMIN_PASSWORD.length < 8) {
+    console.log('Now set ADMIN_PASSWORD at the top of the script (at least 8 characters), then deploy a new version.');
+  }
+}
 
 // ---------- web app entry points ----------
 
